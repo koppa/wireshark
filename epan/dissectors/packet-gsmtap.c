@@ -72,6 +72,7 @@ void proto_reg_handoff_gsmtap(void);
 #define GSMTAP_TYPE_GMR1_UM				0x0a	/* GMR-1 L2 packets */
 #define GSMTAP_TYPE_UMTS_RLC_MAC	0x0b
 #define GSMTAP_TYPE_UMTS_RRC		0x0c
+#define GSMTAP_TYPE_C2XX			0x0d
 
 /* ====== DO NOT MAKE UNAPPROVED MODIFICATIONS HERE ===== */
 #define GSMTAP_BURST_UNKNOWN		0x00
@@ -230,6 +231,7 @@ enum {
 	GSMTAP_SUB_UMTS_RLC_MAC,
 	GSMTAP_SUB_UMTS_RRC,
 
+	GSMTAP_SUB_C2XX,
 	GSMTAP_SUB_MAX
 };
 
@@ -421,6 +423,7 @@ static const value_string gsmtap_types[] = {
 	{ GSMTAP_TYPE_GMR1_UM, "GMR-1 air interfeace (MES-MS<->GTS)" },
 	{ GSMTAP_TYPE_UMTS_RLC_MAC,	"UMTS RLC/MAC" },
 	{ GSMTAP_TYPE_UMTS_RRC,		"UMTS RRC" },
+	{ GSMTAP_TYPE_C2XX,		"C2XX" },
 	{ 0,			NULL },
 };
 
@@ -704,6 +707,9 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 			break;
 		}
 		break;
+	case GSMTAP_TYPE_C2XX:
+		sub_handle = GSMTAP_SUB_C2XX;
+		break;
 	case GSMTAP_TYPE_UM_BURST:
 	default:
 		sub_handle = GSMTAP_SUB_DATA;
@@ -803,6 +809,7 @@ proto_reg_handoff_gsmtap(void)
 	sub_handles[GSMTAP_SUB_GMR1_LAPSAT] = find_dissector("lapsat");
 	sub_handles[GSMTAP_SUB_GMR1_RACH] = find_dissector("gmr1_rach");
 	sub_handles[GSMTAP_SUB_UMTS_RRC] = find_dissector("rrc");
+	sub_handles[GSMTAP_SUB_C2XX] = find_dissector("c2xx");
 
 	rrc_sub_handles[GSMTAP_RRC_SUB_DL_DCCH_Message] = find_dissector("rrc.dl.dcch");
 	rrc_sub_handles[GSMTAP_RRC_SUB_UL_DCCH_Message] = find_dissector("rrc.ul.dcch");
