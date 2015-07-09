@@ -1372,6 +1372,7 @@ DISSECTOR_SRC = \
 	packet-zbee-zdp.c	\
 	packet-zebra.c		\
 	packet-zep.c		\
+	packet-c2xx.c		\
 	packet-ziop.c		\
 	packet-zrtp.c	\
 	packet-zvt.c	\
