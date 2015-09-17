@@ -1590,6 +1590,13 @@ dissect_icmp(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, void* data)
 		break;
 	}
 
+	if (!PINFO_FD_VISITED(pinfo)) {
+		icmp_info_t *p_icmp_info = wmem_new(wmem_file_scope(), icmp_info_t);
+		p_icmp_info->type = icmp_type;
+		p_icmp_info->code = icmp_code;
+		p_add_proto_data(wmem_file_scope(), pinfo, proto_icmp, 0, p_icmp_info);
+	}
+
 	if (trans) {
 		tap_queue_packet(icmp_tap, pinfo, trans);
 	}

@@ -423,9 +423,11 @@ ssl_parse_old_keys(void)
         for (i = 0; old_keys[i] != NULL; i++) {
             parts = wmem_strsplit(NULL, old_keys[i], ",", 5);
             if (parts[0] && parts[1] && parts[2] && parts[3]) {
+                gchar *path = uat_esc(parts[3], (guint)strlen(parts[3]));
                 const gchar *password = parts[4] ? parts[4] : "";
                 uat_entry = wmem_strdup_printf(NULL, "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"",
-                                parts[0], parts[1], parts[2], parts[3], password);
+                                parts[0], parts[1], parts[2], path, password);
+                g_free(path);
                 if (!uat_load_str(ssldecrypt_uat, uat_entry, &err)) {
                     ssl_debug_printf("ssl_parse_old_keys: Can't load UAT string %s: %s\n",
                                      uat_entry, err);
@@ -1325,9 +1327,7 @@ process_ssl_payload(tvbuff_t *tvb, volatile int offset, packet_info *pinfo,
         if (dissector_try_heuristic(ssl_heur_subdissector_list, next_tvb,
                                     pinfo, proto_tree_get_root(tree), &hdtbl_entry, NULL)) {
             if (have_tap_listener(exported_pdu_tap)) {
-                gchar *name = wmem_strconcat(wmem_packet_scope(), hdtbl_entry->list_name, "##",
-                                             proto_get_protocol_short_name(hdtbl_entry->protocol), NULL);
-                export_pdu_packet(next_tvb, pinfo, EXP_PDU_TAG_HEUR_PROTO_NAME, name);
+                export_pdu_packet(next_tvb, pinfo, EXP_PDU_TAG_HEUR_PROTO_NAME, hdtbl_entry->short_name);
             }
         } else {
             if (have_tap_listener(exported_pdu_tap)) {

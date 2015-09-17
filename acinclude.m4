@@ -2064,6 +2064,34 @@ AC_DEFUN([AC_WIRESHARK_QT_MODULE_CHECK],
 	fi
 ])
 
+AC_DEFUN([AC_WIRESHARK_QT_ADD_PIC_IF_NEEDED],
+[
+    AC_LANG_PUSH([C++])
+	save_CPPFLAGS="$CPPFLAGS"
+	CPPFLAGS="$CPPFLAGS $Qt_CFLAGS"
+	AC_MSG_CHECKING([whether Qt works without -fPIC])
+	AC_PREPROC_IFELSE(
+		[AC_LANG_SOURCE([[#include <QtCore>]])],
+		[AC_MSG_RESULT(yes)],
+		[
+			AC_MSG_RESULT(no)
+			AC_MSG_CHECKING([whether Qt works with -fPIC])
+			CPPFLAGS="$CPPFLAGS -fPIC"
+			AC_PREPROC_IFELSE(
+				[AC_LANG_SOURCE([[#include <QtCore>]])],
+				[
+					AC_MSG_RESULT(yes)
+					Qt_CFLAGS="$Qt_CFLAGS -fPIC"
+				],
+				[
+					AC_MSG_RESULT(no)
+					AC_MSG_ERROR(Couldn't compile Qt without -fPIC nor with -fPIC)
+				])
+		])
+	CPPFLAGS="$save_CPPFLAGS"
+    AC_LANG_POP([C++])
+])
+
 dnl AC_WIRESHARK_QT_CHECK([MINIMUM-VERSION, REQUESTED-MAJOR_VERSION,
 dnl     [ACTION-IF-FOUND, [ACTION-IF-NOT-FOUND]]])
 dnl Test for Qt and define Qt_CFLAGS and Qt_LIBS.
@@ -2121,6 +2149,8 @@ AC_DEFUN([AC_WIRESHARK_QT_CHECK],
 		AC_WIRESHARK_QT_MODULE_CHECK(MacExtras, $1, $qt_version_to_check,
 			AC_DEFINE(QT_MACEXTRAS_LIB, 1, [Define if we have QtMacExtras]))
 
+		AC_WIRESHARK_QT_ADD_PIC_IF_NEEDED
+
 		AC_SUBST(Qt_LIBS)
 
 		# Run Action-If-Found
@@ -2133,99 +2163,61 @@ AC_DEFUN([AC_WIRESHARK_QT_CHECK],
 ])
 
 dnl AC_WIRESHARK_QT_TOOL_CHECK([TOOLPATHVAR, TOOL, REQUESTED-MAJOR_VERSION])
-dnl Test for a particular Qt tool, either for any version of Qt or for
-dnl some specific version of Qt
+dnl Test for a particular Qt tool for some specific version of Qt
 dnl
 AC_DEFUN([AC_WIRESHARK_QT_TOOL_CHECK],
 [
-	if test ! -z "$3"; then
+	#
+	# At least in some versions of Debian/Ubuntu, and perhaps
+	# other OSes, the Qt build tools are just links to a
+	# program called "qtchooser", and even if you want to
+	# build with Qt 5, running the tool might give you the
+	# Qt 4 version of the tool unless you run the tool with
+	# a -qt=5 argument.
+	#
+	# So we look for qtchooser and, if we find it, use the
+	# -qt={version} argument, otherwise we look for particular
+	# tool versions using tool name suffixes.
+	#
+	AC_PATH_PROG(QTCHOOSER, qtchooser)
+	if test ! -z "$QTCHOOSER"; then
 		#
-		# We're building with Qt, so we're looking for a particular
-		# major version of Qt's flavor of that tool.
+		# We found qtchooser; we assume that means that
+		# the tool is linked to qtchooser, so that we
+		# can run it with the -qt={version} flag to get
+		# the appropriate version of the tool.
 		#
-		# If we don't find the tool, we can't build, so we fail.
-		#
-		# At least in some versions of Debian/Ubuntu, and perhaps
-		# other OSes, the Qt build tools are just links to a
-		# program called "qtchooser", and even if you want to
-		# build with Qt 5, running the tool might give you the
-		# Qt 4 version of the tool unless you run the tool with
-		# a -qt=5 argument.
-		#
-		# So we look for qtchooser and, if we find it, use the
-		# -qt={version} argument, otherwise we look for particular
-		# tool versions using tool name suffixes.
-		#
-		AC_PATH_PROG(QTCHOOSER, qtchooser)
-		if test ! -z "$QTCHOOSER"; then
-			#
-			# We found qtchooser; we assume that means that
-			# the tool is linked to qtchooser, so that we
-			# can run it with the -qt={version} flag to get
-			# the appropriate version of the tool.
-			#
-			AC_PATH_PROG($1, $2)
-			if test "x$$1" = x; then
-				#
-				# We can't build Qt Wireshark without that
-				# tool..
-				#
-				AC_MSG_ERROR(I couldn't find $2; make sure it's installed and in your path)
-			fi
-
-			#
-			# Add the -qt={version} argument to it.
-			#
-			$1="$$1 -qt=$qt_version"
-		else
-			#
-			# Annoyingly, on some Linux distros (e.g. Debian)
-			# the Qt 5 tools have no suffix and the Qt 4 tools
-			# have suffix -qt4. On other distros (e.g. openSUSE)
-			# the Qt 5 tools have suffix -qt5 and the Qt 4 tools
-			# have no suffix.
-			#
-			# So we check for the tool first with the -qtN suffix
-			# and then with no suffix.
-			#
-			AC_PATH_PROGS($1, [$2-qt$qt_version $2])
-			if test "x$$1" = x; then
-				#
-				# We can't build Qt Wireshark without that
-				# tool..
-				#
-				AC_MSG_ERROR(I couldn't find $2-qt$qt_version or $2; make sure it's installed and in your path)
-			fi
-		fi
-	else
-		#
-		# We're not building with Qt, so we just want some version
-		# of the tool.
-		#
-		# If we don't find the tool, we shouldn't fail, as the
-		# user's not building with Qt, and we shouldn't force them
-		# to have Qt installed if they're not doing so.
-		#
-		# "make dist" will fail if they do that, but
-		# we don't know whether they'll be doing that,
-		# so this is the best we can do.
-		#
-		# For the annoying suffix reasons listed above, we check
-		# for the tool first with the -qt5 suffix, then with no
-		# suffix, then with the -qt4 suffix.
-		#
-		AC_PATH_PROGS($1, [$2-qt5 $2 $2-qt4])
+		AC_PATH_PROG($1, $2)
 		if test "x$$1" = x; then
 			#
-			# We shouldn't fail here, as the user's not
-			# building with Qt, and we shouldn't force them
-			# to have Qt installed if they're not doing so.
+			# We can't build Qt Wireshark without that
+			# tool..
 			#
-			# "make dist" will fail if they do that, but
-			# we don't know whether they'll be doing that,
-			# so this is the best we can do.
+			AC_MSG_ERROR(I couldn't find $2; make sure it's installed and in your path)
+		fi
+
+		#
+		# Add the -qt={version} argument to it.
+		#
+		$1="$$1 -qt=$qt_version"
+	else
+		#
+		# Annoyingly, on some Linux distros (e.g. Debian)
+		# the Qt 5 tools have no suffix and the Qt 4 tools
+		# have suffix -qt4. On other distros (e.g. openSUSE)
+		# the Qt 5 tools have suffix -qt5 and the Qt 4 tools
+		# have no suffix.
+		#
+		# So we check for the tool first with the -qtN suffix
+		# and then with no suffix.
+		#
+		AC_PATH_PROGS($1, [$2-qt$qt_version $2])
+		if test "x$$1" = x; then
 			#
-			$1=$$2
+			# We can't build Qt Wireshark without that
+			# tool..
+			#
+			AC_MSG_ERROR(I couldn't find $2-qt$qt_version or $2; make sure it's installed and in your path)
 		fi
 	fi
 ])

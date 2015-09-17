@@ -9,6 +9,7 @@
 #include "sttype-range.h"
 #include "sttype-test.h"
 #include "sttype-function.h"
+#include "sttype-set.h"
 #include "drange.h"
 
 #include "grammar.h"
@@ -16,7 +17,7 @@
 #ifdef _WIN32
 #pragma warning(disable:4671)
 #endif
-	
+
 /* End of C code */
 }
 
@@ -61,6 +62,9 @@
 %type		funcparams	{GSList*}
 %destructor	funcparams	{st_funcparams_free($$);}
 
+%type		setnode_list	{GSList*}
+%destructor	setnode_list	{set_nodelist_free($$);}
+
 /* This is called as soon as a syntax error happens. After that, 
 any "error" symbols are shifted, if possible. */
 %syntax_error {
@@ -73,7 +77,7 @@ any "error" symbols are shifted, if possible. */
 	}
 
 	switch(stnode_type_id(TOKEN)) {
-	        case STTYPE_UNINITIALIZED:
+		case STTYPE_UNINITIALIZED:
 			dfilter_fail(dfw, "Syntax error.");
 			break;
 		case STTYPE_TEST:
@@ -97,6 +101,9 @@ any "error" symbols are shifted, if possible. */
 			break;
 		case STTYPE_FUNCTION:
 			dfilter_fail(dfw, "The function s was unexpected in this context.");
+			break;
+		case STTYPE_SET:
+			dfilter_fail(dfw, "Syntax error, SET.");
 			break;
 
 		/* These aren't handed to use as terminal tokens from
@@ -127,8 +134,8 @@ shifting 3 more symbols. */
 %right TEST_NOT.
 
 /* Top-level targets */
-sentence ::= expr(X).  		{ dfw->st_root = X; }
-sentence ::= .  		{ dfw->st_root = NULL; }
+sentence ::= expr(X).		{ dfw->st_root = X; }
+sentence ::= .			{ dfw->st_root = NULL; }
 
 expr(X) ::= relation_test(R).	{ X = R; }
 expr(X) ::= logical_test(L).	{ X = L; }
@@ -198,7 +205,7 @@ drnode(D) ::= INTEGER(X) COLON INTEGER(Y).
 	D = drange_node_new();
 	drange_node_set_start_offset(D, stnode_value(X));
 	drange_node_set_length(D, stnode_value(Y));
-	
+
 	stnode_free(X);
 	stnode_free(Y);
 }
@@ -209,7 +216,7 @@ drnode(D) ::= INTEGER(X) HYPHEN INTEGER(Y).
 	D = drange_node_new();
 	drange_node_set_start_offset(D, stnode_value(X));
 	drange_node_set_end_offset(D, stnode_value(Y));
-	
+
 	stnode_free(X);
 	stnode_free(Y);
 }
@@ -285,20 +292,37 @@ rel_op2(O) ::= TEST_BITWISE_AND.  { O = TEST_OP_BITWISE_AND; }
 rel_op2(O) ::= TEST_CONTAINS.  { O = TEST_OP_CONTAINS; }
 rel_op2(O) ::= TEST_MATCHES.  { O = TEST_OP_MATCHES; }
 
+relation_test(T) ::= entity(E) TEST_IN LBRACE setnode_list(L) RBRACE.
+{
+	stnode_t *S;
+	T = stnode_new(STTYPE_TEST, NULL);
+	S = stnode_new(STTYPE_SET, L);
+	sttype_test_set2(T, TEST_OP_IN, E, S);
+}
+
+setnode_list(L) ::= entity(E).
+{
+	L = g_slist_append(NULL, E);
+}
+
+setnode_list(L) ::= setnode_list(P) entity(E).
+{
+	L = g_slist_append(P, E);
+}
 
 /* Functions */
 
 /* A function can have one or more parameters */
 entity(E) ::= FUNCTION(F) LPAREN funcparams(P) RPAREN.
 {
-    E = F;
+	E = F;
 	sttype_function_set_params(E, P);
 }
 
 /* A function can have zero parameters. */
 entity(E) ::= FUNCTION(F) LPAREN RPAREN.
 {
-    E = F;
+	E = F;
 }
 
 funcparams(P) ::= entity(E).

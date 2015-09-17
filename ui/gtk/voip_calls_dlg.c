@@ -55,7 +55,7 @@
 #include "ui/gtk/stock_icons.h"
 
 #ifdef HAVE_LIBPORTAUDIO
-#include "ui/rtp_analysis.h"
+#include "ui/tap-rtp-analysis.h"
 #include "ui/gtk/rtp_player.h"
 #endif /* HAVE_LIBPORTAUDIO */
 
@@ -127,6 +127,7 @@ voip_calls_get_info(void)
 		NULL, /* h245 */
 		NULL, NULL, 0, 0, 0, /* q931 */
 		0, 0, H225_OTHER, FALSE, /* h225 */
+		0, /* SIP */
 		0, 0, 0, /* actrace */
 		FLOW_ALL, /* flow show option */
 		FALSE };

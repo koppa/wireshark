@@ -250,6 +250,9 @@ topic_action_url(topic_action_e action)
     case(HELP_ENABLED_PROTOCOLS_DIALOG):
         url = user_guide_url("ChCustProtocolDissectionSection.html");
         break;
+    case(HELP_ENABLED_HEURISTICS_DIALOG):
+        url = user_guide_url("ChCustProtocolDissectionSection.html");
+        break;
     case(HELP_DECODE_AS_DIALOG):
         url = user_guide_url("ChCustProtocolDissectionSection.html");
         break;
@@ -343,8 +346,11 @@ topic_action_url(topic_action_e action)
         url = user_guide_url("ChTelRTPAnalysis.html");
         break;
     case(HELP_NEW_PACKET_DIALOG):
-        return user_guide_url("ChapterWork.html#ChWorkPacketSepView");
-
+        url = user_guide_url("ChapterWork.html#ChWorkPacketSepView");
+        break;
+    case(HELP_IAX2_ANALYSIS_DIALOG):
+        url = user_guide_url("ChTelIAX2Analysis.html");
+        break;
     case(TOPIC_ACTION_NONE):
     default:
         g_assert_not_reached();

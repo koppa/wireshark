@@ -586,6 +586,8 @@ packet_list_store_clear(PacketList *packet_list)
 	/* Generate new number */
 	packet_list->stamp = g_random_int();
 
+	g_string_chunk_clear(packet_list->string_pool);
+
 #ifdef PACKET_LIST_STATISTICS
 	g_warning("Const strings: %u", packet_list->const_strings);
 	packet_list->const_strings = 0;
@@ -646,6 +648,7 @@ packet_list_append_record(PacketList *packet_list, frame_data *fdata)
 	return newrecord->visible_pos;
 }
 
+#define PACKET_STRING_CHUNK_SIZE (1 * 1024 * 1024)
 static void
 packet_list_change_record(PacketList *packet_list, PacketListRecord *record, gint col, column_info *cinfo)
 {
@@ -662,24 +665,6 @@ packet_list_change_record(PacketList *packet_list, PacketListRecord *record, gin
 
 	col_item = &cfile.cinfo.columns[col];
 	switch (col_item->col_fmt) {
-		case COL_DEF_SRC:
-		case COL_RES_SRC:	/* COL_DEF_SRC is currently just like COL_RES_SRC */
-		case COL_UNRES_SRC:
-		case COL_DEF_DL_SRC:
-		case COL_RES_DL_SRC:
-		case COL_UNRES_DL_SRC:
-		case COL_DEF_NET_SRC:
-		case COL_RES_NET_SRC:
-		case COL_UNRES_NET_SRC:
-		case COL_DEF_DST:
-		case COL_RES_DST:	/* COL_DEF_DST is currently just like COL_RES_DST */
-		case COL_UNRES_DST:
-		case COL_DEF_DL_DST:
-		case COL_RES_DL_DST:
-		case COL_UNRES_DL_DST:
-		case COL_DEF_NET_DST:
-		case COL_RES_NET_DST:
-		case COL_UNRES_NET_DST:
 		case COL_PROTOCOL:
 		case COL_INFO:
 		case COL_IF_DIR:
@@ -702,6 +687,24 @@ packet_list_change_record(PacketList *packet_list, PacketListRecord *record, gin
 			}
 		/* !! FALL-THROUGH!! */
 
+		case COL_DEF_SRC:
+		case COL_RES_SRC:	/* COL_DEF_SRC is currently just like COL_RES_SRC */
+		case COL_UNRES_SRC:
+		case COL_DEF_DL_SRC:
+		case COL_RES_DL_SRC:
+		case COL_UNRES_DL_SRC:
+		case COL_DEF_NET_SRC:
+		case COL_RES_NET_SRC:
+		case COL_UNRES_NET_SRC:
+		case COL_DEF_DST:
+		case COL_RES_DST:	/* COL_DEF_DST is currently just like COL_RES_DST */
+		case COL_UNRES_DST:
+		case COL_DEF_DL_DST:
+		case COL_RES_DL_DST:
+		case COL_UNRES_DL_DST:
+		case COL_DEF_NET_DST:
+		case COL_RES_NET_DST:
+		case COL_UNRES_NET_DST:
 		default:
 			if(col_item->col_data){
 				col_text_len = strlen(col_item->col_data);
@@ -719,7 +722,7 @@ packet_list_change_record(PacketList *packet_list, PacketListRecord *record, gin
 			}
 
 			if(!packet_list->string_pool)
-				packet_list->string_pool = g_string_chunk_new(32);
+				packet_list->string_pool = g_string_chunk_new(PACKET_STRING_CHUNK_SIZE);
 			if (!get_column_resolved (col) && cinfo->col_expr.col_expr_val[col]) {
 				/* Use the unresolved value in col_expr_val */
 				str = g_string_chunk_insert_const (packet_list->string_pool, (const gchar *)cinfo->col_expr.col_expr_val[col]);

@@ -53,7 +53,7 @@ static dissector_handle_t data_handle;
 static int proto_ethertype = -1;
 
 const value_string etype_vals[] = {
-	{ ETHERTYPE_IP,                   "IP" },
+	{ ETHERTYPE_IP,                   "IPv4" },
 	{ ETHERTYPE_IPv6,                 "IPv6" },
 	{ ETHERTYPE_VLAN,                 "802.1Q Virtual LAN" },
 	{ ETHERTYPE_ARP,                  "ARP" },
@@ -184,6 +184,7 @@ const value_string etype_vals[] = {
 	{ ETHERTYPE_HSR,                  "High-availability Seamless Redundancy (IEC62439 Part 3)" },
 	{ ETHERTYPE_BPQ,                  "AX.25"},
 	{ ETHERTYPE_CMD,                  "CiscoMetaData"},
+	{ ETHERTYPE_XIP,                  "eXpressive Internet Protocol"},
 	{ 0, NULL }
 };
 

@@ -80,6 +80,7 @@ const value_string expert_group_vals[] = {
 	{ PI_PROTOCOL,          "Protocol" },
 	{ PI_SECURITY,          "Security" },
 	{ PI_COMMENTS_GROUP,    "Comment" },
+	{ PI_DECRYPTION,        "Decryption" },
 	{ 0, NULL }
 };
 
@@ -322,6 +323,11 @@ expert_module_t *expert_register_protocol(int id)
 	return module;
 }
 
+void expert_deregister_protocol (expert_module_t *module)
+{
+    wmem_free(wmem_epan_scope(), module);
+}
+
 static int
 expert_register_field_init(expert_field_info *expinfo, expert_module_t *module)
 {
@@ -370,8 +376,8 @@ expert_register_field_array(expert_module_t *module, ei_register_info *exp, cons
 		 */
 		if (ptr->ids->ei != -1 && ptr->ids->ei != 0) {
 			fprintf(stderr,
-				"Duplicate field detected in call to expert_register_field_array: '%s' is already registered\n",
-				ptr->eiinfo.summary);
+				"Duplicate field detected in call to expert_register_field_array: '%s' is already registered, name=%s\n",
+				ptr->eiinfo.summary, ptr->eiinfo.name);
 			return;
 		}
 
@@ -404,6 +410,20 @@ expert_registrar_get_byname(const char *field_name)
 	return hfinfo;
 }
 
+/**
+ * Get summary text of an expert_info field.
+ * This is intended for use in expert_add_info_format or proto_tree_add_expert_format
+ * to get the "base" string to then append additional information
+ */
+const gchar* expert_get_summary(expert_field *eiindex)
+{
+	expert_field_info *eiinfo;
+
+	/* Look up the item */
+	EXPERT_REGISTRAR_GET_NTH(eiindex->ei, eiinfo);
+
+    return eiinfo->summary;
+}
 
 /** clear flags according to the mask and set new flag values */
 #define FI_REPLACE_FLAGS(fi, mask, flags_in) { \

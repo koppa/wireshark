@@ -556,6 +556,8 @@ mp2t_fragment_handle(tvbuff_t *tvb, guint offset, packet_info *pinfo,
     if (new_tvb) {
         /* ti = */ proto_tree_add_item(tree, hf_msg_ts_packet_reassembled, tvb, 0, 0, ENC_NA);
         mp2t_dissect_packet(new_tvb, pload_type, pinfo, tree);
+    } else {
+        col_set_str(pinfo->cinfo, COL_INFO, "[MP2T fragment of a reassembled packet]");
     }
 
     pinfo->fragmented = save_fragmented;
@@ -731,6 +733,10 @@ mp2t_process_fragmented_payload(tvbuff_t *tvb, gint offset, guint remaining_len,
         }
 
         while (remaining_len > 0) {
+            /* Don't like subsequent packets overwrite the Info column */
+            col_append_str(pinfo->cinfo, COL_INFO, " ");
+            col_set_fence(pinfo->cinfo, COL_INFO);
+
             /* Skip stuff bytes */
             stuff_len = 0;
             while ((tvb_get_guint8(tvb, offset + stuff_len) == 0xFF)) {
@@ -1538,11 +1544,11 @@ proto_register_mp2t(void)
 void
 proto_reg_handoff_mp2t(void)
 {
-    heur_dissector_add("udp", heur_dissect_mp2t, proto_mp2t);
+    heur_dissector_add("udp", heur_dissect_mp2t, "MP2T over UDP", "mp2t_udp", proto_mp2t, HEURISTIC_ENABLE);
 
     dissector_add_uint("rtp.pt", PT_MP2T, mp2t_handle);
     dissector_add_for_decode_as("udp.port", mp2t_handle);
-    heur_dissector_add("usb.bulk", heur_dissect_mp2t, proto_mp2t);
+    heur_dissector_add("usb.bulk", heur_dissect_mp2t, "MP2T USB bulk endpoint", "mp2t_usb_bulk", proto_mp2t, HEURISTIC_ENABLE);
     dissector_add_uint("wtap_encap", WTAP_ENCAP_MPEG_2_TS, mp2t_handle);
     dissector_add_uint("l2tp.pw_type", L2TPv3_PROTOCOL_DOCSIS_DMPT, mp2t_handle);
 

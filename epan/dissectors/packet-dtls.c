@@ -129,6 +129,7 @@ static gint ett_dtls_fragment          = -1;
 static gint ett_dtls_fragments         = -1;
 
 static expert_field ei_dtls_handshake_fragment_length_too_long = EI_INIT;
+static expert_field ei_dtls_handshake_fragment_length_zero = EI_INIT;
 static expert_field ei_dtls_handshake_fragment_past_end_msg = EI_INIT;
 static expert_field ei_dtls_msg_len_diff_fragment = EI_INIT;
 static expert_field ei_dtls_heartbeat_payload_length = EI_INIT;
@@ -257,8 +258,10 @@ dtls_parse_old_keys(void)
     for (i = 0; old_keys[i] != NULL; i++) {
       parts = wmem_strsplit(NULL, old_keys[i], ",", 4);
       if (parts[0] && parts[1] && parts[2] && parts[3]) {
+        gchar *path = uat_esc(parts[3], (guint)strlen(parts[3]));
         uat_entry = wmem_strdup_printf(NULL, "\"%s\",\"%s\",\"%s\",\"%s\",\"\"",
-                        parts[0], parts[1], parts[2], parts[3]);
+                        parts[0], parts[1], parts[2], path);
+        g_free(path);
         if (!uat_load_str(dtlsdecrypt_uat, uat_entry, &err)) {
           ssl_debug_printf("dtls_parse: Can't load UAT string %s: %s\n",
                            uat_entry, err);
@@ -342,8 +345,6 @@ dissect_dtls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   SslDecryptSession *ssl_session;
   SslSession        *session;
   gint               is_from_server;
-  gboolean           conv_first_seen;
-  Ssl_private_key_t *private_key;
 
   ti                    = NULL;
   dtls_tree             = NULL;
@@ -363,38 +364,7 @@ dissect_dtls(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    *       in addition to conv_version
    */
   conversation = find_or_create_conversation(pinfo);
-  conv_first_seen = conversation_get_proto_data(conversation, proto_dtls) == NULL;
   ssl_session = ssl_get_session(conversation, dtls_handle);
-  if (conv_first_seen) {
-    SslService dummy;
-
-    /* we need to know witch side of conversation is speaking */
-    /* XXX: remove this? it looks like a historical leftover since the initial
-     * commit. Since 0f05597ab17ea7fc5161458c670f56a523cb9c42,
-     * ssl_find_private_key is called so this is not needed */
-    if (ssl_packet_from_server(&ssl_session->session, dtls_associations, pinfo)) {
-      dummy.addr = pinfo->src;
-      dummy.port = pinfo->srcport;
-    }
-    else {
-      dummy.addr = pinfo->dst;
-      dummy.port = pinfo->destport;
-    }
-    ssl_debug_printf("dissect_dtls server %s:%d\n",
-                     address_to_str(wmem_packet_scope(), &dummy.addr),dummy.port);
-
-    /* try to retrieve private key for this service. Do it now 'cause pinfo
-     * is not always available
-     * Note that with HAVE_LIBGNUTLS undefined private_key is always 0
-     * and thus decryption never engaged*/
-    private_key = (Ssl_private_key_t *)g_hash_table_lookup(dtls_key_hash, &dummy);
-    if (!private_key) {
-      ssl_debug_printf("dissect_dtls can't find private key for this server!\n");
-    }
-    else {
-      ssl_session->private_key = private_key->sexp_pkey;
-    }
-  }
   session = &ssl_session->session;
   is_from_server = ssl_packet_from_server(session, dtls_associations, pinfo);
 
@@ -962,9 +932,7 @@ dissect_dtls_record(tvbuff_t *tvb, packet_info *pinfo,
           /* try heuristic subdissectors */
           dissected = dissector_try_heuristic(heur_subdissector_list, next_tvb, pinfo, top_tree, &hdtbl_entry, NULL);
           if (dissected && have_tap_listener(exported_pdu_tap)) {
-            gchar *name = wmem_strconcat(wmem_packet_scope(), hdtbl_entry->list_name, "##",
-                                         proto_get_protocol_short_name(hdtbl_entry->protocol), NULL);
-            export_pdu_packet(next_tvb, pinfo, EXP_PDU_TAG_HEUR_PROTO_NAME, name);
+            export_pdu_packet(next_tvb, pinfo, EXP_PDU_TAG_HEUR_PROTO_NAME, hdtbl_entry->short_name);
           }
         }
         pinfo->match_uint = saved_match_port;
@@ -1238,6 +1206,14 @@ dissect_dtls_handshake(tvbuff_t *tvb, packet_info *pinfo,
               fragmented = TRUE;
               expert_add_info(pinfo, fragment_length_item, &ei_dtls_handshake_fragment_past_end_msg);
             }
+        }
+      else if (fragment_offset > 0 && fragment_length == 0)
+        {
+          /* Fragmented message, but no actual fragment... Note that if a
+           * fragment was previously completed (reassembled_length == length),
+           * it is already dissected. */
+          expert_add_info(pinfo, fragment_length_item, &ei_dtls_handshake_fragment_length_zero);
+          continue;
         }
       else if (fragment_length < length)
         {
@@ -1870,6 +1846,7 @@ proto_register_dtls(void)
   };
 
   static ei_register_info ei[] = {
+     { &ei_dtls_handshake_fragment_length_zero, { "dtls.handshake.fragment_length.zero", PI_PROTOCOL, PI_WARN, "Zero-length fragment length for fragmented message", EXPFILL }},
      { &ei_dtls_handshake_fragment_length_too_long, { "dtls.handshake.fragment_length.too_long", PI_PROTOCOL, PI_ERROR, "Fragment length is larger than message length", EXPFILL }},
      { &ei_dtls_handshake_fragment_past_end_msg, { "dtls.handshake.fragment_past_end_msg", PI_PROTOCOL, PI_ERROR, "Fragment runs past the end of the message", EXPFILL }},
      { &ei_dtls_msg_len_diff_fragment, { "dtls.msg_len_diff_fragment", PI_PROTOCOL, PI_ERROR, "Message length differs from value in earlier fragment", EXPFILL }},
@@ -1967,7 +1944,7 @@ proto_reg_handoff_dtls(void)
   exported_pdu_tap = find_tap_id(EXPORT_PDU_TAP_NAME_LAYER_7);
 
   if (initialized == FALSE) {
-    heur_dissector_add("udp", dissect_dtls_heur, proto_dtls);
+    heur_dissector_add("udp", dissect_dtls_heur, "DTLS over UDP", "dtls_udp", proto_dtls, HEURISTIC_ENABLE);
     dissector_add_uint("sctp.ppi", DIAMETER_DTLS_PROTOCOL_ID, find_dissector("dtls"));
   }
 

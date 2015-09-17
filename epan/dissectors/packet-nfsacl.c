@@ -201,10 +201,9 @@ dissect_nfsacl_secattr(tvbuff_t *tvb, int offset, packet_info *pinfo _U_,
 }
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 static const vsff nfsacl1_proc[] = {
 	{ NFSACLPROC_NULL,	"NULL",
-		NULL,	NULL },
+	  dissect_rpc_void,	dissect_rpc_void },
 	{ 0,	NULL,	NULL,	NULL }
 };
 static const value_string nfsacl1_proc_vals[] = {
@@ -360,7 +359,7 @@ dissect_nfsacl2_getxattrdir_reply(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
 
 static const vsff nfsacl2_proc[] = {
 	{ NFSACLPROC_NULL,	"NULL",
-		NULL,	NULL },
+		dissect_rpc_void,		dissect_rpc_void },
 	{ NFSACLPROC2_GETACL,	"GETACL",
 		dissect_nfsacl2_getacl_call,	dissect_nfsacl2_getacl_reply },
 	{ NFSACLPROC2_SETACL,	"SETACL",
@@ -488,7 +487,7 @@ dissect_nfsacl3_getxattrdir_reply(tvbuff_t *tvb, packet_info *pinfo _U_, proto_t
 
 static const vsff nfsacl3_proc[] = {
 	{ NFSACLPROC_NULL,	"NULL",
-		NULL,	NULL },
+		dissect_rpc_void,		dissect_rpc_void },
 	{ NFSACLPROC3_GETACL,	"GETACL",
 		dissect_nfsacl3_getacl_call,	dissect_nfsacl3_getacl_reply },
 	{ NFSACLPROC3_SETACL,	"SETACL",
@@ -503,6 +502,12 @@ static const value_string nfsacl3_proc_vals[] = {
 	{ NFSACLPROC3_SETACL,		 "SETACL" },
 	{ NFSACLPROC3_GETXATTRDIR,	 "GETXATTRDIR" },
 	{ 0,	NULL }
+};
+
+static const rpc_prog_vers_info nfsacl_vers_info[] = {
+	{ 1, nfsacl1_proc, &hf_nfsacl_procedure_v1 },
+	{ 2, nfsacl2_proc, &hf_nfsacl_procedure_v2 },
+	{ 3, nfsacl3_proc, &hf_nfsacl_procedure_v3 },
 };
 
 void
@@ -588,11 +593,8 @@ void
 proto_reg_handoff_nfsacl(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_nfsacl, NFSACL_PROGRAM, ett_nfsacl);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_nfsacl, NFSACL_PROGRAM, 1, nfsacl1_proc, hf_nfsacl_procedure_v1);
-	rpc_init_proc_table(proto_nfsacl, NFSACL_PROGRAM, 2, nfsacl2_proc, hf_nfsacl_procedure_v2);
-	rpc_init_proc_table(proto_nfsacl, NFSACL_PROGRAM, 3, nfsacl3_proc, hf_nfsacl_procedure_v3);
+	rpc_init_prog(proto_nfsacl, NFSACL_PROGRAM, ett_nfsacl,
+	    G_N_ELEMENTS(nfsacl_vers_info), nfsacl_vers_info);
 }
 
 /*

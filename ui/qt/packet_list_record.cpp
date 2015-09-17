@@ -47,17 +47,20 @@ PacketListRecord::PacketListRecord(frame_data *frameData) :
 {
 }
 
-const QVariant PacketListRecord::columnString(capture_file *cap_file, int column)
+// We might want to return a const char * instead. This would keep us from
+// creating excessive QByteArrays, e.g. in PacketListModel::recordLessThan.
+const QByteArray PacketListRecord::columnString(capture_file *cap_file, int column, bool colorized)
 {
     // packet_list_store.c:packet_list_get_value
     g_assert(fdata_);
 
     if (!cap_file || column < 0 || column > cap_file->cinfo.num_cols) {
-        return QVariant();
+        return QByteArray();
     }
 
-    if (column >= col_text_.size() || col_text_[column].isNull() || data_ver_ != col_data_ver_ || !colorized_) {
-        dissect(cap_file, !colorized_);
+    bool dissect_color = colorized && !colorized_;
+    if (column >= col_text_.size() || !col_text_[column] || data_ver_ != col_data_ver_ || dissect_color) {
+        dissect(cap_file, dissect_color);
     }
 
     return col_text_.value(column, QByteArray());
@@ -171,6 +174,14 @@ void PacketListRecord::dissect(capture_file *cap_file, bool dissect_color)
     ws_buffer_free(&buf);
 }
 
+// This assumes only one packet list. We might want to move this to
+// PacketListModel (or replace this with a wmem allocator).
+struct _GStringChunk *PacketListRecord::string_pool_ = g_string_chunk_new(1 * 1024 * 1024);
+void PacketListRecord::clearStringPool()
+{
+    g_string_chunk_clear(string_pool_);
+}
+
 //#define MINIMIZE_STRING_COPYING 1
 void PacketListRecord::cacheColumnStrings(column_info *cinfo)
 {
@@ -197,6 +208,23 @@ void PacketListRecord::cacheColumnStrings(column_info *cinfo)
         }
 
         switch (cinfo->col_fmt[column]) {
+        case COL_PROTOCOL:
+        case COL_INFO:
+        case COL_IF_DIR:
+        case COL_DCE_CALL:
+        case COL_8021Q_VLAN_ID:
+        case COL_EXPERT:
+        case COL_FREQ_CHAN:
+            if (cinfo->columns[column].col_data && cinfo->columns[column].col_data != cinfo->columns[column].col_buf) {
+                /* This is a constant string, so we don't have to copy it */
+                // XXX - ui/gtk/packet_list_store.c uses G_MAXUSHORT. We don't do proper UTF8
+                // truncation in either case.
+                int col_text_len = MIN(qstrlen(cinfo->col_data[column]) + 1, COL_MAX_INFO_LEN);
+                col_text_.append(QByteArray::fromRawData(cinfo->columns[column].col_data, col_text_len));
+                break;
+            }
+            /* !! FALL-THROUGH!! */
+
         case COL_DEF_SRC:
         case COL_RES_SRC:        /* COL_DEF_SRC is currently just like COL_RES_SRC */
         case COL_UNRES_SRC:
@@ -215,23 +243,6 @@ void PacketListRecord::cacheColumnStrings(column_info *cinfo)
         case COL_DEF_NET_DST:
         case COL_RES_NET_DST:
         case COL_UNRES_NET_DST:
-        case COL_PROTOCOL:
-        case COL_INFO:
-        case COL_IF_DIR:
-        case COL_DCE_CALL:
-        case COL_8021Q_VLAN_ID:
-        case COL_EXPERT:
-        case COL_FREQ_CHAN:
-            if (cinfo->columns[column].col_data && cinfo->columns[column].col_data != cinfo->columns[column].col_buf) {
-                /* This is a constant string, so we don't have to copy it */
-                // XXX - ui/gtk/packet_list_store.c uses G_MAXUSHORT. We don't do proper UTF8
-                // truncation in either case.
-                int col_text_len = MIN(qstrlen(cinfo->col_data[column]) + 1, COL_MAX_INFO_LEN);
-                col_text_.append(QByteArray::fromRawData(cinfo->columns[column].col_data, col_text_len));
-                break;
-            }
-            /* !! FALL-THROUGH!! */
-
         default:
             if (!get_column_resolved(column) && cinfo->col_expr.col_expr_val[column]) {
                 /* Use the unresolved value in col_expr_val */
@@ -243,21 +254,27 @@ void PacketListRecord::cacheColumnStrings(column_info *cinfo)
             break;
         }
 #else // MINIMIZE_STRING_COPYING
-        // XXX Use QContiguousCache?
-        QByteArray col_text;
+        const char *col_str;
         if (!get_column_resolved(column) && cinfo->col_expr.col_expr_val[column]) {
             /* Use the unresolved value in col_expr_val */
-            col_text = cinfo->col_expr.col_expr_val[column];
+            col_str = cinfo->col_expr.col_expr_val[column];
         } else {
             int text_col = cinfo_column_.value(column, -1);
 
             if (text_col < 0) {
                 col_fill_in_frame_data(fdata_, cinfo, column, FALSE);
             }
-            col_text = cinfo->columns[column].col_data;
+            col_str = cinfo->columns[column].col_data;
         }
-        col_text_.append(col_text);
-        col_lines += col_text.count('\n');
+        // g_string_chunk_insert_const manages a hash table of pointers to
+        // strings:
+        // https://git.gnome.org/browse/glib/tree/glib/gstringchunk.c
+        // We might be better off adding the equivalent functionality to
+        // wmem_tree.
+        col_text_.append(g_string_chunk_insert_const(string_pool_, col_str));
+        for (int i = 0; col_str[i]; i++) {
+            if (col_str[i] == '\n') col_lines++;
+        }
         if (col_lines > lines_) {
             lines_ = col_lines;
             line_count_changed_ = true;

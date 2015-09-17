@@ -28,6 +28,9 @@
 #include "qt_ui_utils.h"
 #include "wireshark_application.h"
 
+// Helper object used for sending close signal to open dialogs from a C function
+static FunnelStringDialogHelper dialogHelper;
+
 const int min_edit_width_ = 20; // em widths
 FunnelStringDialog::FunnelStringDialog(const QString title, const QStringList field_name_list, funnel_dlg_cb_t dialog_cb, void *dialog_cb_data) :
     QDialog(NULL),
@@ -56,6 +59,22 @@ FunnelStringDialog::~FunnelStringDialog()
     delete ui;
 }
 
+void FunnelStringDialog::accept()
+{
+    QDialog::accept();
+
+    disconnect();
+    deleteLater();
+}
+
+void FunnelStringDialog::reject()
+{
+    QDialog::reject();
+
+    disconnect();
+    deleteLater();
+}
+
 void FunnelStringDialog::on_buttonBox_accepted()
 {
     if (!dialog_cb_) return;
@@ -75,7 +94,13 @@ void FunnelStringDialog::on_buttonBox_accepted()
 void FunnelStringDialog::stringDialogNew(const QString title, const QStringList field_name_list, funnel_dlg_cb_t dialog_cb, void *dialog_cb_data)
 {
     FunnelStringDialog *fsd = new FunnelStringDialog(title, field_name_list, dialog_cb, dialog_cb_data);
+    connect(&dialogHelper, SIGNAL(closeDialogs()), fsd, SLOT(close()));
     fsd->show();
+}
+
+void FunnelStringDialogHelper::emitCloseDialogs()
+{
+    emit closeDialogs();
 }
 
 void string_dialog_new(const gchar *title, const gchar **fieldnames, funnel_dlg_cb_t dialog_cb, void *dialog_cb_data)
@@ -85,6 +110,11 @@ void string_dialog_new(const gchar *title, const gchar **fieldnames, funnel_dlg_
         field_name_list << fieldnames[i];
     }
     FunnelStringDialog::stringDialogNew(title, field_name_list, dialog_cb, dialog_cb_data);
+}
+
+void string_dialogs_close(void)
+{
+    dialogHelper.emitCloseDialogs();
 }
 
 /*

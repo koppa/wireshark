@@ -27,6 +27,7 @@
 #include <epan/packet.h>
 #include <epan/to_str.h>
 #include <epan/conversation_table.h>
+#include <epan/decode_as.h>
 #include <wiretap/wtap.h>
 
 #include "packet-bluetooth.h"
@@ -47,6 +48,7 @@ static dissector_handle_t data_handle;
 
 static dissector_table_t bluetooth_table;
 static dissector_table_t hci_vendor_table;
+dissector_table_t        bluetooth_uuid_table;
 
 static wmem_tree_t *chandle_sessions        = NULL;
 static wmem_tree_t *chandle_to_bdaddr       = NULL;
@@ -59,6 +61,7 @@ static wmem_tree_t *hci_vendors             = NULL;
 
 static int bluetooth_tap = -1;
 int bluetooth_device_tap = -1;
+int bluetooth_hci_summary_tap = -1;
 
 const value_string bluetooth_uuid_vals[] = {
     /* Protocol Identifiers - https://www.bluetooth.org/en-us/specification/assigned-numbers/service-discovery */
@@ -111,9 +114,9 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x1112,   "Headset Audio Gateway" },
     { 0x1113,   "WAP" },
     { 0x1114,   "WAP Client" },
-    { 0x1115,   "PANU" },
-    { 0x1116,   "NAP" },
-    { 0x1117,   "GN" },
+    { 0x1115,   "PAN PANU" },
+    { 0x1116,   "PAN NAP" },
+    { 0x1117,   "PAN GN" },
     { 0x1118,   "Direct Printing" },
     { 0x1119,   "Reference Printing" },
     { 0x111A,   "Imaging" },
@@ -189,6 +192,7 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x1812,   "Human Interface Device" },
     { 0x1813,   "Scan Parameters" },
     { 0x1814,   "Running Speed and Cadence" },
+    { 0x1815,   "Automation IO" }, /* Not adopted, 0.9 now (6th June 2015) */
     { 0x1816,   "Cycling Speed and Cadence" },
     { 0x1818,   "Cycling Power" },
     { 0x1819,   "Location and Navigation" },
@@ -199,6 +203,8 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x181E,   "Bond Management" },
     { 0x181F,   "Continuous Glucose Monitoring" },
     { 0x1820,   "Internet Protocol Support" },
+    { 0x1821,   "Indoor Positioning" },
+    { 0x1822,   "Pulse Oximeter" },
     /* Units - https://developer.bluetooth.org/gatt/units/Pages/default.aspx */
     { 0x2700,   "unitless" },
     { 0x2701,   "length (metre)" },
@@ -326,9 +332,12 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x2906,   "Valid Range" },
     { 0x2907,   "External Report Reference" },
     { 0x2908,   "Report Reference" },
+    { 0x2909,   "Number of Digitals" }, /* Not adopted, 0.9 now (18th July 2015) */
+    { 0x290A,   "Value Trigger Setting" },
     { 0x290B,   "Environmental Sensing Configuration" },
     { 0x290C,   "Environmental Sensing Measurement" },
     { 0x290D,   "Environmental Sensing Trigger Setting" },
+    { 0x290E,   "Time Trigger Setting" }, /* Not adopted, 0.9 now (18th July 2015) */
     /* Characteristics - https://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicsHome.aspx */
     { 0x2A00,   "Device Name" },
     { 0x2A01,   "Appearance" },
@@ -400,6 +409,9 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x2A53,   "RSC Measurement" },
     { 0x2A54,   "RSC Feature" },
     { 0x2A55,   "SC Control Point" },
+    { 0x2A56,   "Digital" },    /* Not adopted, 0.9 now (6th June 2015) */
+    { 0x2A58,   "Analog" },     /* Not adopted, 0.9 now (6th June 2015) */
+    { 0x2A5A,   "Aggregate" },  /* Not adopted, 0.9 now (6th June 2015) */
     { 0x2A5B,   "CSC Measurement" },
     { 0x2A5C,   "CSC Feature" },
     { 0x2A5D,   "Sensor Location" },
@@ -476,6 +488,15 @@ const value_string bluetooth_uuid_vals[] = {
     { 0x2AAA,   "CGM Session Start Time" },
     { 0x2AAB,   "CGM Session Run Time" },
     { 0x2AAC,   "CGM Specific Ops Control Point" },
+    { 0x2AAD,   "Indoor Positioning Configuration" },
+    { 0x2AAE,   "Latitude" },
+    { 0x2AAF,   "Longitude" },
+    { 0x2AB0,   "Local North Coordinate" },
+    { 0x2AB1,   "Local East Coordinate" },
+    { 0x2AB2,   "Floor Number" },
+    { 0x2AB3,   "Altitude" },
+    { 0x2AB4,   "Uncertainty" },
+    { 0x2AB5,   "Location Name" },
     /*  16-bit UUID for Members - https://www.bluetooth.org/en-us/Pages/LoginRestrictedAll/16-bit-UUIDs-member.aspx */
     { 0XFEB6, "Vencer Co, Ltd" },
     { 0XFEB7, "Facebook, Inc." },
@@ -483,14 +504,14 @@ const value_string bluetooth_uuid_vals[] = {
     { 0XFEB9, "LG Electronics" },
     { 0XFEBA, "Tencent Holdings Limited" },
     { 0XFEBB, "adafruit industries" },
-    { 0XFEBC, "Dexcom, Inc. " },
-    { 0XFEBD, "Clover Network, Inc. " },
+    { 0XFEBC, "Dexcom, Inc." },
+    { 0XFEBD, "Clover Network, Inc." },
     { 0XFEBE, "Bose Corporation" },
-    { 0XFEBF, "Nod, Inc. " },
+    { 0XFEBF, "Nod, Inc." },
     { 0XFEC0, "KDDI Corporation" },
     { 0XFEC1, "KDDI Corporation" },
-    { 0XFEC2, "Blue Spark Technologies, Inc. " },
-    { 0XFEC3, "360fly, Inc. " },
+    { 0XFEC2, "Blue Spark Technologies, Inc." },
+    { 0XFEC3, "360fly, Inc." },
     { 0XFEC4, "PLUS Location Systems" },
     { 0XFEC5, "Realtek Semiconductor Corp." },
     { 0XFEC6, "Kocomojo, LLC" },
@@ -519,7 +540,7 @@ const value_string bluetooth_uuid_vals[] = {
     { 0XFEDD, "Jawbone" },
     { 0XFEDE, "Coin, Inc." },
     { 0XFEDF, "Design SHIFT" },
-    { 0XFEE0, "Anhui Huami Information Technology Co. " },
+    { 0XFEE0, "Anhui Huami Information Technology Co." },
     { 0XFEE1, "Anhui Huami Information Technology Co." },
     { 0XFEE2, "Anki, Inc." },
     { 0XFEE3, "Anki, Inc." },
@@ -531,7 +552,7 @@ const value_string bluetooth_uuid_vals[] = {
     { 0XFEE9, "Quintic Corp." },
     { 0xFEEA, "Swirl Networks, Inc." },
     { 0xFEEB, "Swirl Networks, Inc." },
-    { 0xFEEC, "Tile, Inc. " },
+    { 0xFEEC, "Tile, Inc." },
     { 0xFEED, "Tile, Inc." },
     { 0xFEEE, "Polar Electro Oy" },
     { 0xFEEF, "Polar Electro Oy" },
@@ -1022,6 +1043,28 @@ guint32 max_disconnect_in_frame = G_MAXUINT32;
 void proto_register_bluetooth(void);
 void proto_reg_handoff_bluetooth(void);
 
+static void bluetooth_uuid_prompt(packet_info *pinfo, gchar* result)
+{
+    gchar *value_data;
+
+    value_data = (gchar *) p_get_proto_data(pinfo->pool, pinfo, proto_bluetooth, PROTO_DATA_BLUETOOTH_SERVICE_UUID);
+    if (value_data)
+        g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "BT Service UUID %s as", (gchar *) value_data);
+    else
+        g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "Unknown BT Service UUID");
+}
+
+static gpointer bluetooth_uuid_value(packet_info *pinfo)
+{
+    gchar *value_data;
+
+    value_data = (gchar *) p_get_proto_data(pinfo->pool, pinfo, proto_bluetooth, PROTO_DATA_BLUETOOTH_SERVICE_UUID);
+
+    if (value_data)
+        return (gpointer) value_data;
+
+    return NULL;
+}
 
 gint
 dissect_bd_addr(gint hf_bd_addr, packet_info *pinfo, proto_tree *tree,
@@ -1499,6 +1542,13 @@ proto_register_bluetooth(void)
         &ett_bluetooth,
     };
 
+    /* Decode As handling */
+    static build_valid_func bluetooth_uuid_da_build_value[1] = {bluetooth_uuid_value};
+    static decode_as_value_t bluetooth_uuid_da_values = {bluetooth_uuid_prompt, 1, bluetooth_uuid_da_build_value};
+    static decode_as_t bluetooth_uuid_da = {"bluetooth", "BT Service UUID", "bluetooth.uuid", 1, 0, &bluetooth_uuid_da_values, NULL, NULL,
+            decode_as_default_populate_list, decode_as_default_reset, decode_as_default_change, NULL};
+
+
     proto_bluetooth = proto_register_protocol("Bluetooth",
             "Bluetooth", "bluetooth");
 
@@ -1523,8 +1573,13 @@ proto_register_bluetooth(void)
 
     bluetooth_tap = register_tap("bluetooth");
     bluetooth_device_tap = register_tap("bluetooth.device");
+    bluetooth_hci_summary_tap = register_tap("bluetooth.hci_summary");
+
+    bluetooth_uuid_table = register_dissector_table("bluetooth.uuid", "BT Service UUID", FT_STRING, BASE_NONE);
 
     register_conversation_table(proto_bluetooth, TRUE, bluetooth_conversation_packet, bluetooth_hostlist_packet);
+
+    register_decode_as(&bluetooth_uuid_da);
 }
 
 void

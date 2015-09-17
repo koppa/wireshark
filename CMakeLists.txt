@@ -110,7 +110,9 @@ if(WIN32)
 	# Download third-party libraries
 	file (TO_NATIVE_PATH ${CMAKE_SOURCE_DIR}/tools/win-setup.ps1 _win_setup)
 	file (TO_NATIVE_PATH ${_PROJECT_LIB_DIR} _ws_lib_dir)
-	if(MSVC12)
+	if(MSVC14)
+		set(_vsversion_args "14")
+	elseif(MSVC12)
 		set(_vsversion_args "12")
 	elseif(MSVC11)
 		set(_vsversion_args "11")
@@ -178,7 +180,7 @@ include(CMakeInstallDirs)
 set(GIT_REVISION 0)
 set(PROJECT_MAJOR_VERSION 1)
 set(PROJECT_MINOR_VERSION 99)
-set(PROJECT_PATCH_VERSION 8)
+set(PROJECT_PATCH_VERSION 10)
 set(PROJECT_BUILD_VERSION ${GIT_REVISION})
 set(PROJECT_VERSION_EXTENSION "$ENV{WIRESHARK_VERSION_EXTRA}")
 set(PROJECT_VERSION "${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT_PATCH_VERSION}${PROJECT_VERSION_EXTENSION}")
@@ -231,6 +233,8 @@ if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		set(MSC_VER_REQUIRED 1700)
 	elseif(MSVC12)
 		set(MSC_VER_REQUIRED 1800)
+	elseif(MSVC14)
+		set(MSC_VER_REQUIRED 1900)
 	else()
 		message(FATAL_ERROR "You are using an unsupported version of MSVC")
 	endif()
@@ -278,6 +282,10 @@ if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		# /Zo                               Enhanced debugging of optimised code for VS2013 Update 3 and beyond,
 		#                                   Assume all VS2013 builds are at least Update 3.
 		#                                   See http://msdn.microsoft.com/en-us/library/dn785163.aspx
+		set(LOCAL_CFLAGS ${LOCAL_CFLAGS} "/Zo")
+	elseif(MSVC14)
+		# /Zo                               Enhanced debugging of optimised code
+		#                                   VS2015(MSVC14): On by default when /Zi or /Z7 used.
 		set(LOCAL_CFLAGS ${LOCAL_CFLAGS} "/Zo")
 	endif()
 
@@ -338,11 +346,6 @@ else()
 		-fwrapv
 		-fno-strict-overflow
 		-fno-delete-null-pointer-checks
-		-fsanitize=undefined # compile and runtime checks
-		# -fsanitize=float-divide-by-zero
-		# -fsanitize=float-cast-overflow
-		# -fsanitize=address
-		# -fno-sanitize-recover # Abort during runtime
 		-Wvla
 		-Waddress
 		-Wattributes
@@ -457,6 +460,10 @@ else()
 		# and no yet all leak is fixed...
 		# use ASAN_OPTIONS=detect_leaks=0 to disable detect_leaks
 		-fsanitize=address
+		-fsanitize=undefined # compile and runtime checks
+		# -fsanitize=float-divide-by-zero
+		# -fsanitize=float-cast-overflow
+		# -fno-sanitize-recover # Abort during runtime
 	)
 
 	if(ENABLE_ASAN)
@@ -887,8 +894,8 @@ if (Qt5Widgets_FOUND)
 elseif(QT_FOUND)
 	include(${QT_USE_FILE})
 	include_directories(${QT_INCLUDE_DIR})
-	message(STATUS "QT includes: ${QT_INCLUDE_DIR}")
-	message(STATUS "QT libs: ${QT_LIBRARIES}")
+	message(STATUS "Qt includes: ${QT_INCLUDE_DIR}")
+	message(STATUS "Qt libs: ${QT_LIBRARIES}")
 endif()
 
 message(STATUS "C-Flags: ${CMAKE_C_FLAGS}")
@@ -913,21 +920,6 @@ test_big_endian(WORDS_BIGENDIAN)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-add_custom_command(
-	OUTPUT	${CMAKE_BINARY_DIR}/version.h
-	COMMAND ${PERL_EXECUTABLE}
-		${CMAKE_CURRENT_SOURCE_DIR}/make-version.pl
-		${CMAKE_CURRENT_SOURCE_DIR}
-	DEPENDS
-		${CMAKE_CURRENT_SOURCE_DIR}/make-version.pl
-)
-
-add_custom_target(
-	gitversion ALL
-	DEPENDS ${CMAKE_BINARY_DIR}/version.h
-)
-set_target_properties(gitversion PROPERTIES FOLDER "Auxiliary")
-
 add_subdirectory( asn1 EXCLUDE_FROM_ALL )
 add_subdirectory( capchild )
 add_subdirectory( caputils )
@@ -938,8 +930,6 @@ add_subdirectory( tools/lemon )
 add_subdirectory( ui )
 add_subdirectory( wiretap )
 add_subdirectory( wsutil )
-
-add_dependencies(wsutil gitversion)
 
 if(NOT WIN32)
 	add_custom_target(dumpabi DEPENDS dumpabi-libwireshark dumpabi-libwiretap dumpabi-libwsutil color.h)
@@ -1055,8 +1045,18 @@ else()
 endif()
 
 set( VERSION ${PROJECT_VERSION} )
+execute_process(
+	COMMAND ${PERL_EXECUTABLE}
+		${CMAKE_CURRENT_SOURCE_DIR}/make-version.pl
+		--print-vcs
+		${CMAKE_CURRENT_SOURCE_DIR}
+	OUTPUT_VARIABLE VERSION_H_CONTENT
+)
 set( configure_input "Built with CMake ${CMAKE_VERSION}" )
 configure_file(${CMAKE_SOURCE_DIR}/cmakeconfig.h.in ${CMAKE_BINARY_DIR}/config.h)
+configure_file(${CMAKE_SOURCE_DIR}/version.h.in ${CMAKE_BINARY_DIR}/version.h)
+#set_target_properties(${CMAKE_BINARY_DIR}/version.h PROPERTIES FOLDER "Auxiliary")
+
 set(ICON_PATH "${CMAKE_SOURCE_DIR}/image/")
 set( IN_FILES
 	adns_dll.rc
@@ -1140,7 +1140,6 @@ if(ENABLE_EXTCAP)
 endif()
 
 set(TSHARK_TAP_SRC
-	ui/cli/tap-camelcounter.c
 	ui/cli/tap-camelsrt.c
 	ui/cli/tap-comparestat.c
 	ui/cli/tap-diameter-avp.c
@@ -1149,7 +1148,6 @@ set(TSHARK_TAP_SRC
 	ui/cli/tap-follow.c
 	ui/cli/tap-funnel.c
 	ui/cli/tap-gsm_astat.c
-	ui/cli/tap-h225counter.c
 	ui/cli/tap-hosts.c
 	ui/cli/tap-httpstat.c
 	ui/cli/tap-icmpstat.c
@@ -1623,17 +1621,9 @@ if(ENABLE_APPLICATION_BUNDLE)
 	# with a static version installed in /usr/local/lib rather than
 	# the system version in /usr/lib).
 	#
-	# Also add -Wl,-rpath,@executable_path/../Frameworks,
-	# -Wl,-rpath,@executable_path/../lib and
-	# -Wl,-rpath,/usr/local/lib, so that, if we build an app
-	# bundle, we can tweak all the executable images, shared
-	# libraries, and plugins in the bundle to look for non-system
-	# libraries in the rpath, rather than having a script tweak
-	# DYLD_LIBRARY_PATH.
-	#
 
 	set(CMAKE_EXE_LINKER_FLAGS
-	"-Wl,-headerpad_max_install_names -Wl,-search_paths_first -Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,@executable_path/../lib -Wl,-rpath,/usr/local/lib ${CMAKE_EXE_LINKER_FLAGS}"
+	"-Wl,-headerpad_max_install_names -Wl,-search_paths_first ${CMAKE_EXE_LINKER_FLAGS}"
 	)
 
 	# Add files to the app bundle
@@ -1694,8 +1684,6 @@ if(BUILD_wireshark AND QT_FOUND)
 		${APPLE_SYSTEM_CONFIGURATION_LIBRARY}
 		${NL_LIBRARIES}
 	)
-	# wireshark and wireshark-gtk share wireshark_FILES
-	add_dependencies(qtui gitversion)
 
 	# Policy since 2.8.11
 	if (POLICY CMP0020)
@@ -2243,7 +2231,6 @@ if(BUILD_androiddump)
 
 	add_executable(androiddump WIN32 ${androiddump_FILES})
 	# XXX Shouldn't we add wsutil to androiddump_LIBS instead?
-	add_dependencies(androiddump gitversion)
 	set_extcap_executable_properties(androiddump)
 	target_link_libraries(androiddump ${androiddump_LIBS})
 	install(TARGETS androiddump RUNTIME DESTINATION ${EXTCAP_DIR})

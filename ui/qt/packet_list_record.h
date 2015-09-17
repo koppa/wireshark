@@ -36,16 +36,18 @@
 #include <QVariant>
 
 struct conversation;
+struct _GStringChunk;
 
 class PacketListRecord
 {
 public:
     PacketListRecord(frame_data *frameData);
     // Return the string value for a column. Data is cached if possible.
-    const QVariant columnString(capture_file *cap_file, int column);
+    const QByteArray columnString(capture_file *cap_file, int column, bool colorized = false);
     frame_data *frameData() const { return fdata_; }
     // packet_list->col_to_text in gtk/packet_list_store.c
     static int textColumn(int column) { return cinfo_column_.value(column, -1); }
+    bool colorized() { return colorized_; }
     struct conversation *conversation() { return conv_; }
 
     int columnTextSize(const char *str);
@@ -54,9 +56,11 @@ public:
     inline int lineCount() { return lines_; }
     inline int lineCountChanged() { return line_count_changed_; }
 
+    static void clearStringPool();
+
 private:
     /** The column text for some columns */
-    QList<QByteArray> col_text_;
+    QList<const char *> col_text_;
 
     frame_data *fdata_;
     int lines_;
@@ -74,6 +78,8 @@ private:
 
     void dissect(capture_file *cap_file, bool dissect_color = false);
     void cacheColumnStrings(column_info *cinfo);
+
+    static struct _GStringChunk *string_pool_;
 
 };
 

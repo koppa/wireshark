@@ -31,6 +31,8 @@ extern "C" {
 #include "packet-usb.h"
 #include "packet-ubertooth.h"
 
+#define PROTO_DATA_BLUETOOTH_SERVICE_UUID  0
+
 #define BLUETOOTH_DATA_SRC 0
 #define BLUETOOTH_DATA_DST 1
 
@@ -227,10 +229,41 @@ typedef struct _bluetooth_device_tap_t {
     } data;
 } bluetooth_device_tap_t;
 
+enum bluetooth_hci_summary_type {
+    BLUETOOTH_HCI_SUMMARY_OPCODE,
+    BLUETOOTH_HCI_SUMMARY_EVENT_OPCODE,
+    BLUETOOTH_HCI_SUMMARY_EVENT,
+    BLUETOOTH_HCI_SUMMARY_VENDOR_OPCODE,
+    BLUETOOTH_HCI_SUMMARY_VENDOR_EVENT_OPCODE,
+    BLUETOOTH_HCI_SUMMARY_VENDOR_EVENT,
+    BLUETOOTH_HCI_SUMMARY_STATUS,
+    BLUETOOTH_HCI_SUMMARY_STATUS_PENDING,
+    BLUETOOTH_HCI_SUMMARY_REASON,
+    BLUETOOTH_HCI_SUMMARY_HARDWARE_ERROR
+};
+
+typedef struct _bluetooth_hci_summary_tap_t {
+    guint32                          interface_id;
+    guint32                          adapter_id;
+
+    guint16                          ocf;
+    guint8                           ogf;
+    guint8                           event;
+    guint8                           status;
+    guint8                           reason;
+    guint8                           hardware_error;
+
+    const gchar                     *name;
+    enum bluetooth_hci_summary_type  type;
+} bluetooth_hci_summary_tap_t;
+
 extern int bluetooth_device_tap;
+extern int bluetooth_hci_summary_tap;
 
 WS_DLL_PUBLIC const value_string   bluetooth_uuid_vals[];
 WS_DLL_PUBLIC const bluetooth_uuid_custom_t  bluetooth_uuid_custom[];
+
+extern dissector_table_t  bluetooth_uuid_table;
 
 WS_DLL_PUBLIC value_string_ext  bluetooth_uuid_vals_ext;
 WS_DLL_PUBLIC value_string_ext  bluetooth_company_id_vals_ext;

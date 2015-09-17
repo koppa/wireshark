@@ -281,7 +281,7 @@ static int FieldInfo_get_display(lua_State* L) {
 /* WSLUA_ATTRIBUTE FieldInfo_type RO The internal field type, a number which
    matches one of the `ftype` values in `init.lua`.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_type(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -299,7 +299,7 @@ static int FieldInfo_get_type(lua_State* L) {
 /* WSLUA_ATTRIBUTE FieldInfo_source RO The source `Tvb` object the `FieldInfo` is derived
     from, or nil if there is none.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_source(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -337,7 +337,7 @@ static int FieldInfo_get_generated(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE FieldInfo_hidden RO Whether this field was marked as hidden (boolean).
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_hidden(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -348,7 +348,7 @@ static int FieldInfo_get_hidden(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE FieldInfo_is_url RO Whether this field was marked as being a URL (boolean).
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_is_url(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -359,7 +359,7 @@ static int FieldInfo_get_is_url(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE FieldInfo_little_endian RO Whether this field is little-endian encoded (boolean).
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_little_endian(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -370,7 +370,7 @@ static int FieldInfo_get_little_endian(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE FieldInfo_big_endian RO Whether this field is big-endian encoded (boolean).
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_big_endian(lua_State* L) {
     FieldInfo fi = checkFieldInfo(L,1);
@@ -381,7 +381,7 @@ static int FieldInfo_get_big_endian(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE FieldInfo_name RO The filter name of this field.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int FieldInfo_get_name(lua_State* L) {
     /* The filter name of this field. */
@@ -590,7 +590,7 @@ void lua_prime_all_fields(proto_tree* tree _U_) {
     g_ptr_array_free(wanted_fields,TRUE);
     wanted_fields = NULL;
 
-    if (fake_tap) {
+    if (fake_tap && fake_tap_filter->len > strlen("frame")) {
         /* a boring tap :-) */
         GString* error = register_tap_listener("frame",
                 &fake_tap,
@@ -611,8 +611,10 @@ void lua_prime_all_fields(proto_tree* tree _U_) {
                 g_free(err_msg);
             }
         }
+    } else if (fake_tap) {
+        remove_tap_listener(&fake_tap);
+        fake_tap = FALSE;
     }
-
 }
 
 WSLUA_CONSTRUCTOR Field_new(lua_State *L) {
@@ -705,7 +707,7 @@ WSLUA_CONSTRUCTOR Field_list(lua_State *L) {
 
 /* WSLUA_ATTRIBUTE Field_name RO The filter name of this field, or nil.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int Field_get_name(lua_State* L) {
     Field fi = checkField(L,1);
@@ -718,7 +720,7 @@ static int Field_get_name(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE Field_display RO The full display name of this field, or nil.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int Field_get_display(lua_State* L) {
     Field fi = checkField(L,1);
@@ -731,7 +733,7 @@ static int Field_get_display(lua_State* L) {
 
 /* WSLUA_ATTRIBUTE Field_type RO The `ftype` of this field, or nil.
 
-   @since 1.99.9
+   @since 1.99.8
  */
 static int Field_get_type(lua_State* L) {
     Field fi = checkField(L,1);

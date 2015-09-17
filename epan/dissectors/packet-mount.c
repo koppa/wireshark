@@ -670,23 +670,23 @@ dissect_mount_statvfs_reply(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *t
 }
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 
 /* Mount protocol version 1, RFC 1094 */
 static const vsff mount1_proc[] = {
-	{ 0, "NULL", NULL, NULL },
+	{ 0, "NULL",
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_MNT,        "MNT",
 	  dissect_mount_dirpath_call, dissect_mount1_mnt_reply },
 	{ MOUNTPROC_DUMP,       "DUMP",
-	  NULL, dissect_mount_dump_reply },
+	  dissect_rpc_void, dissect_mount_dump_reply },
 	{ MOUNTPROC_UMNT,      "UMNT",
-	  dissect_mount_dirpath_call, NULL },
+	  dissect_mount_dirpath_call, dissect_rpc_void },
 	{ MOUNTPROC_UMNTALL,   "UMNTALL",
-	  NULL, NULL },
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_EXPORT,    "EXPORT",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ MOUNTPROC_EXPORTALL, "EXPORTALL",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ 0, NULL, NULL, NULL }
 };
 static const value_string mount1_proc_vals[] = {
@@ -706,19 +706,20 @@ static const value_string mount1_proc_vals[] = {
    mount V2 is V1 plus MOUNTPROC_PATHCONF to fetch information for the
    POSIX "pathconf()" call. */
 static const vsff mount2_proc[] = {
-	{ 0, "NULL", NULL, NULL },
+	{ 0,                    "NULL",
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_MNT,        "MNT",
 	  dissect_mount_dirpath_call, dissect_mount1_mnt_reply },
 	{ MOUNTPROC_DUMP,       "DUMP",
-	  NULL, dissect_mount_dump_reply },
+	  dissect_rpc_void, dissect_mount_dump_reply },
 	{ MOUNTPROC_UMNT,      "UMNT",
-	  dissect_mount_dirpath_call, NULL },
+	  dissect_mount_dirpath_call, dissect_rpc_void },
 	{ MOUNTPROC_UMNTALL,   "UMNTALL",
-	  NULL, NULL },
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_EXPORT,    "EXPORT",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ MOUNTPROC_EXPORTALL, "EXPORTALL",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ MOUNTPROC_PATHCONF,  "PATHCONF",
 	  dissect_mount_dirpath_call, dissect_mount_pathconf_reply },
 	{ 0, NULL, NULL, NULL }
@@ -739,17 +740,18 @@ static const value_string mount2_proc_vals[] = {
 
 /* Mount protocol version 3, RFC 1813 */
 static const vsff mount3_proc[] = {
-	{ 0, "NULL", NULL, NULL },
+	{ 0, "NULL",
+		dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_MNT, "MNT",
 		dissect_mount_dirpath_call, dissect_mount3_mnt_reply },
 	{ MOUNTPROC_DUMP, "DUMP",
-		NULL, dissect_mount_dump_reply },
+		dissect_rpc_void, dissect_mount_dump_reply },
 	{ MOUNTPROC_UMNT, "UMNT",
-		dissect_mount_dirpath_call, NULL },
+		dissect_mount_dirpath_call, dissect_rpc_void },
 	{ MOUNTPROC_UMNTALL, "UMNTALL",
-		NULL, NULL },
+		dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_EXPORT, "EXPORT",
-		NULL, dissect_mount_export_reply },
+		dissect_rpc_void, dissect_mount_export_reply },
 	{ 0, NULL, NULL, NULL }
 };
 static const value_string mount3_proc_vals[] = {
@@ -763,25 +765,32 @@ static const value_string mount3_proc_vals[] = {
 };
 /* end of Mount protocol version 3 */
 
+static const rpc_prog_vers_info mount_vers_info[] = {
+	{ 1, mount1_proc, &hf_mount_procedure_v1 },
+	{ 2, mount2_proc, &hf_mount_procedure_v2 },
+	{ 3, mount3_proc, &hf_mount_procedure_v3 },
+};
+
 /* SGI mount protocol version 1; actually the same as v1 plus
    MOUNTPROC_EXPORTLIST and MOUNTPROC_STATVFS */
 
 static const vsff sgi_mount1_proc[] = {
-	{ 0, "NULL", NULL, NULL },
+	{ 0, "NULL",
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_MNT,        "MNT",
 	  dissect_mount_dirpath_call, dissect_mount1_mnt_reply },
 	{ MOUNTPROC_DUMP,       "DUMP",
-	  NULL, dissect_mount_dump_reply },
+	  dissect_rpc_void, dissect_mount_dump_reply },
 	{ MOUNTPROC_UMNT,      "UMNT",
-	  dissect_mount_dirpath_call, NULL },
+	  dissect_mount_dirpath_call, dissect_rpc_void },
 	{ MOUNTPROC_UMNTALL,   "UMNTALL",
-	  NULL, NULL },
+	  dissect_rpc_void, dissect_rpc_void },
 	{ MOUNTPROC_EXPORT,    "EXPORT",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ MOUNTPROC_EXPORTALL, "EXPORTALL",
-	  NULL, dissect_mount_export_reply },
+	  dissect_rpc_void, dissect_mount_export_reply },
 	{ MOUNTPROC_EXPORTLIST,"EXPORTLIST",
-	  NULL, dissect_mount_exportlist_reply },
+	  dissect_rpc_void, dissect_mount_exportlist_reply },
 	{ MOUNTPROC_STATVFS,   "STATVFS",
 	  dissect_mount_dirpath_call, dissect_mount_statvfs_reply },
 	{ 0, NULL, NULL, NULL }
@@ -799,6 +808,10 @@ static const value_string sgi_mount1_proc_vals[] = {
 	{ 0, NULL }
 };
 /* end of SGI mount protocol version 1 */
+
+static const rpc_prog_vers_info sgi_mount_vers_info[] = {
+	{ 1, sgi_mount1_proc, &hf_sgi_mount_procedure_v1 },
+};
 
 void
 proto_register_mount(void)
@@ -1024,14 +1037,11 @@ proto_register_mount(void)
 void
 proto_reg_handoff_mount(void)
 {
-	/* Register the protocol as RPC */
-	rpc_init_prog(proto_mount, MOUNT_PROGRAM, ett_mount);
-	rpc_init_prog(proto_sgi_mount, SGI_MOUNT_PROGRAM, ett_mount);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_mount, MOUNT_PROGRAM, 1, mount1_proc, hf_mount_procedure_v1);
-	rpc_init_proc_table(proto_mount, MOUNT_PROGRAM, 2, mount2_proc, hf_mount_procedure_v2);
-	rpc_init_proc_table(proto_mount, MOUNT_PROGRAM, 3, mount3_proc, hf_mount_procedure_v3);
-	rpc_init_proc_table(proto_sgi_mount, SGI_MOUNT_PROGRAM, 1, sgi_mount1_proc, hf_sgi_mount_procedure_v1);
+	/* Register the protocols as RPC */
+	rpc_init_prog(proto_mount, MOUNT_PROGRAM, ett_mount,
+	    G_N_ELEMENTS(mount_vers_info), mount_vers_info);
+	rpc_init_prog(proto_sgi_mount, SGI_MOUNT_PROGRAM, ett_mount,
+	    G_N_ELEMENTS(sgi_mount_vers_info), sgi_mount_vers_info);
 }
 
 /*

@@ -1,7 +1,7 @@
 /* packet-lte-rrc-template.c
  * Routines for Evolved Universal Terrestrial Radio Access (E-UTRA);
  * Radio Resource Control (RRC) protocol specification
- * (3GPP TS 36.331 V12.5.0 Release 12) packet dissection
+ * (3GPP TS 36.331 V12.6.0 Release 12) packet dissection
  * Copyright 2008, Vincent Helfre
  * Copyright 2009-2015, Pascal Quantin
  *
@@ -33,6 +33,9 @@
 #include <epan/to_str.h>
 #include <epan/asn1.h>
 #include <epan/expert.h>
+#include <epan/reassemble.h>
+#include <epan/exceptions.h>
+#include <epan/show_exception.h>
 
 #include "packet-per.h"
 #include "packet-rrc.h"
@@ -233,6 +236,28 @@ static int hf_lte_rrc_modifiedMPR_Behavior_r10_mpr_ampr_28 = -1;
 static int hf_lte_rrc_modifiedMPR_Behavior_r10_mpr_ampr_29 = -1;
 static int hf_lte_rrc_modifiedMPR_Behavior_r10_mpr_ampr_30 = -1;
 static int hf_lte_rrc_modifiedMPR_Behavior_r10_mpr_ampr_31 = -1;
+static int hf_lte_rrc_sib11_fragments = -1;
+static int hf_lte_rrc_sib11_fragment = -1;
+static int hf_lte_rrc_sib11_fragment_overlap = -1;
+static int hf_lte_rrc_sib11_fragment_overlap_conflict = -1;
+static int hf_lte_rrc_sib11_fragment_multiple_tails = -1;
+static int hf_lte_rrc_sib11_fragment_too_long_fragment = -1;
+static int hf_lte_rrc_sib11_fragment_error = -1;
+static int hf_lte_rrc_sib11_fragment_count = -1;
+static int hf_lte_rrc_sib11_reassembled_in = -1;
+static int hf_lte_rrc_sib11_reassembled_length = -1;
+static int hf_lte_rrc_sib11_reassembled_data = -1;
+static int hf_lte_rrc_sib12_fragments = -1;
+static int hf_lte_rrc_sib12_fragment = -1;
+static int hf_lte_rrc_sib12_fragment_overlap = -1;
+static int hf_lte_rrc_sib12_fragment_overlap_conflict = -1;
+static int hf_lte_rrc_sib12_fragment_multiple_tails = -1;
+static int hf_lte_rrc_sib12_fragment_too_long_fragment = -1;
+static int hf_lte_rrc_sib12_fragment_error = -1;
+static int hf_lte_rrc_sib12_fragment_count = -1;
+static int hf_lte_rrc_sib12_reassembled_in = -1;
+static int hf_lte_rrc_sib12_reassembled_length = -1;
+static int hf_lte_rrc_sib12_reassembled_data = -1;
 
 /* Initialize the subtree pointers */
 static int ett_lte_rrc = -1;
@@ -257,6 +282,10 @@ static gint ett_lte_rrc_tdd_FDD_CA_PCellDuplex_r12 = -1;
 static gint ett_lte_rrc_sr_ConfigIndex = -1;
 static gint ett_lte_rrc_transmissionModeList_r12 = -1;
 static gint ett_lte_rrc_modifiedMPR_Behavior_r10 = -1;
+static gint ett_lte_rrc_sib11_fragment = -1;
+static gint ett_lte_rrc_sib11_fragments = -1;
+static gint ett_lte_rrc_sib12_fragment = -1;
+static gint ett_lte_rrc_sib12_fragments = -1;
 
 static expert_field ei_lte_rrc_number_pages_le15 = EI_INIT;
 static expert_field ei_lte_rrc_si_info_value_changed = EI_INIT;
@@ -267,6 +296,43 @@ static expert_field ei_lte_rrc_unexpected_type_value = EI_INIT;
 static expert_field ei_lte_rrc_unexpected_length_value = EI_INIT;
 static expert_field ei_lte_rrc_too_many_group_a_rapids = EI_INIT;
 static expert_field ei_lte_rrc_invalid_drx_config = EI_INIT;
+
+static reassembly_table lte_rrc_sib11_reassembly_table;
+static reassembly_table lte_rrc_sib12_reassembly_table;
+
+static const fragment_items lte_rrc_sib11_frag_items = {
+    &ett_lte_rrc_sib11_fragment,
+    &ett_lte_rrc_sib11_fragments,
+    &hf_lte_rrc_sib11_fragments,
+    &hf_lte_rrc_sib11_fragment,
+    &hf_lte_rrc_sib11_fragment_overlap,
+    &hf_lte_rrc_sib11_fragment_overlap_conflict,
+    &hf_lte_rrc_sib11_fragment_multiple_tails,
+    &hf_lte_rrc_sib11_fragment_too_long_fragment,
+    &hf_lte_rrc_sib11_fragment_error,
+    &hf_lte_rrc_sib11_fragment_count,
+    &hf_lte_rrc_sib11_reassembled_in,
+    &hf_lte_rrc_sib11_reassembled_length,
+    &hf_lte_rrc_sib11_reassembled_data,
+    "SIB11 warning message segments"
+};
+
+static const fragment_items lte_rrc_sib12_frag_items = {
+    &ett_lte_rrc_sib12_fragment,
+    &ett_lte_rrc_sib12_fragments,
+    &hf_lte_rrc_sib12_fragments,
+    &hf_lte_rrc_sib12_fragment,
+    &hf_lte_rrc_sib12_fragment_overlap,
+    &hf_lte_rrc_sib12_fragment_overlap_conflict,
+    &hf_lte_rrc_sib12_fragment_multiple_tails,
+    &hf_lte_rrc_sib12_fragment_too_long_fragment,
+    &hf_lte_rrc_sib12_fragment_error,
+    &hf_lte_rrc_sib12_fragment_count,
+    &hf_lte_rrc_sib12_reassembled_in,
+    &hf_lte_rrc_sib12_reassembled_length,
+    &hf_lte_rrc_sib12_reassembled_data,
+    "SIB12 warning message segments"
+};
 
 /* Forward declarations */
 static int dissect_DL_DCCH_Message_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_);
@@ -2082,6 +2148,18 @@ static const true_false_string lte_rrc_transmissionModeList_r12_val = {
   "NeighCellsInfo does not apply"
 };
 
+static void
+lte_rrc_call_dissector(dissector_handle_t handle, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+  TRY {
+    call_dissector(handle, tvb, pinfo, tree);
+  }
+  CATCH_BOUNDS_ERRORS {
+    show_exception(tvb, pinfo, tree, EXCEPT_CODE, GET_MESSAGE);
+  }
+  ENDTRY;
+}
+
 /*****************************************************************************/
 /* Packet private data                                                       */
 /* For this dissector, all access to actx->private_data should be made       */
@@ -2105,6 +2183,8 @@ typedef struct lte_rrc_private_data_t
   guint8  si_or_psi_geran;
   guint8  ra_preambles;
   guint16 message_identifier;
+  guint8 warning_message_segment_type;
+  guint8 warning_message_segment_number;
   drb_mapping_t drb_mapping;
   drx_config_t  drx_config;
   pdcp_security_info_t pdcp_security;
@@ -2195,6 +2275,34 @@ static void private_data_set_message_identifier(asn1_ctx_t *actx, guint16 messag
 {
   lte_rrc_private_data_t *private_data = (lte_rrc_private_data_t*)lte_rrc_get_private_data(actx);
   private_data->message_identifier = message_identifier;
+}
+
+
+/* Warning message segment type */
+static guint16 private_data_get_warning_message_segment_type(asn1_ctx_t *actx)
+{
+  lte_rrc_private_data_t *private_data = (lte_rrc_private_data_t*)lte_rrc_get_private_data(actx);
+  return private_data->warning_message_segment_type;
+}
+
+static void private_data_set_warning_message_segment_type(asn1_ctx_t *actx, guint8 segment_type)
+{
+  lte_rrc_private_data_t *private_data = (lte_rrc_private_data_t*)lte_rrc_get_private_data(actx);
+  private_data->warning_message_segment_type = segment_type;
+}
+
+
+/* Warning message segment number */
+static guint16 private_data_get_warning_message_segment_number(asn1_ctx_t *actx)
+{
+  lte_rrc_private_data_t *private_data = (lte_rrc_private_data_t*)lte_rrc_get_private_data(actx);
+  return private_data->warning_message_segment_number;
+}
+
+static void private_data_set_warning_message_segment_number(asn1_ctx_t *actx, guint8 segment_number)
+{
+  lte_rrc_private_data_t *private_data = (lte_rrc_private_data_t*)lte_rrc_get_private_data(actx);
+  private_data->warning_message_segment_number = segment_number;
 }
 
 
@@ -2567,11 +2675,9 @@ dissect_lte_rrc_DL_CCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC DL_CCCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_DL_CCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_DL_CCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2598,11 +2704,9 @@ dissect_lte_rrc_UL_CCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC UL_CCCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_UL_CCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_UL_CCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2614,11 +2718,9 @@ dissect_lte_rrc_UL_DCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC UL_DCCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_UL_DCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_UL_DCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2630,11 +2732,9 @@ dissect_lte_rrc_BCCH_BCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC BCCH_BCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_BCCH_BCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_BCCH_BCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2646,8 +2746,6 @@ dissect_lte_rrc_BCCH_DL_SCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC DL_SCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  /* Dissect regardless of whether tree is set, so that we can track whether
-     systemInfoValue has changed */
   ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
   lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
   dissect_BCCH_DL_SCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
@@ -2676,11 +2774,9 @@ dissect_lte_rrc_MCCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC MCCH");
   col_clear(pinfo->cinfo, COL_INFO);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_MCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_MCCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2697,13 +2793,25 @@ dissect_lte_rrc_Handover_Preparation_Info(tvbuff_t *tvb, packet_info *pinfo, pro
   col_set_str(pinfo->cinfo, COL_INFO, "HandoverPreparationInformation");
   col_set_writable(pinfo->cinfo, FALSE);
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
-    lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
-    dissect_lte_rrc_HandoverPreparationInformation_PDU(tvb, pinfo, lte_rrc_tree, NULL);
-  }
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_lte_rrc_HandoverPreparationInformation_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 
   col_set_writable(pinfo->cinfo, TRUE);
+}
+
+static void
+dissect_lte_rrc_SBCCH_SL_BCH(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+{
+  proto_item *ti;
+  proto_tree *lte_rrc_tree;
+
+  col_set_str(pinfo->cinfo, COL_PROTOCOL, "LTE RRC SBCCH_SL_BCH");
+  col_clear(pinfo->cinfo, COL_INFO);
+
+  ti = proto_tree_add_item(tree, proto_lte_rrc, tvb, 0, -1, ENC_NA);
+  lte_rrc_tree = proto_item_add_subtree(ti, ett_lte_rrc);
+  dissect_SBCCH_SL_BCH_Message_PDU(tvb, pinfo, lte_rrc_tree, NULL);
 }
 
 static void
@@ -2711,6 +2819,10 @@ lte_rrc_init_protocol(void)
 {
   lte_rrc_etws_cmas_dcs_hash = g_hash_table_new(g_direct_hash, g_direct_equal);
   lte_rrc_system_info_value_changed_hash = g_hash_table_new(g_direct_hash, g_direct_equal);
+  reassembly_table_init(&lte_rrc_sib11_reassembly_table,
+                        &addresses_reassembly_table_functions);
+  reassembly_table_init(&lte_rrc_sib12_reassembly_table,
+                        &addresses_reassembly_table_functions);
 }
 
 static void
@@ -2718,6 +2830,8 @@ lte_rrc_cleanup_protocol(void)
 {
   g_hash_table_destroy(lte_rrc_etws_cmas_dcs_hash);
   g_hash_table_destroy(lte_rrc_system_info_value_changed_hash);
+  reassembly_table_destroy(&lte_rrc_sib11_reassembly_table);
+  reassembly_table_destroy(&lte_rrc_sib12_reassembly_table);
 }
 
 /*--- proto_register_rrc -------------------------------------------*/
@@ -3344,6 +3458,94 @@ void proto_register_lte_rrc(void) {
       { "MPR/A-MPR behavior 31", "lte-rrc.modifiedMPR_Behavior_r10.mpr_ampr_31",
         FT_BOOLEAN, BASE_NONE, TFS(&tfs_supported_not_supported), 0,
         NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragments,
+      { "Fragments", "lte-rrc.warningMessageSegment.fragments",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment,
+      { "Fragment", "lte-rrc.warningMessageSegment.fragment",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_overlap,
+      { "Fragment Overlap", "lte-rrc.warningMessageSegment.fragment_overlap",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_overlap_conflict,
+      { "Fragment Overlap Conflict", "lte-rrc.warningMessageSegment.fragment_overlap_conflict",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_multiple_tails,
+      { "Fragment Multiple Tails", "lte-rrc.warningMessageSegment.fragment_multiple_tails",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_too_long_fragment,
+      { "Too Long Fragment", "lte-rrc.warningMessageSegment.fragment_too_long_fragment",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_error,
+      { "Fragment Error", "lte-rrc.warningMessageSegment.fragment_error",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_fragment_count,
+      { "Fragment Count", "lte-rrc.warningMessageSegment.fragment_count",
+         FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_reassembled_in,
+      { "Reassembled In", "lte-rrc.warningMessageSegment.reassembled_in",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_reassembled_length,
+      { "Reassembled Length", "lte-rrc.warningMessageSegment.reassembled_length",
+         FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib11_reassembled_data,
+      { "Reassembled Data", "lte-rrc.warningMessageSegment.reassembled_data",
+         FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragments,
+      { "Fragments", "lte-rrc.warningMessageSegment_r9.fragments",
+        FT_NONE, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment,
+      { "Fragment", "lte-rrc.warningMessageSegment_r9.fragment",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_overlap,
+      { "Fragment Overlap", "lte-rrc.warningMessageSegment_r9.fragment_overlap",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_overlap_conflict,
+      { "Fragment Overlap Conflict", "lte-rrc.warningMessageSegment_r9.fragment_overlap_conflict",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_multiple_tails,
+      { "Fragment Multiple Tails", "lte-rrc.warningMessageSegment_r9.fragment_multiple_tails",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_too_long_fragment,
+      { "Too Long Fragment", "lte-rrc.warningMessageSegment_r9.fragment_too_long_fragment",
+         FT_BOOLEAN, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_error,
+      { "Fragment Error", "lte-rrc.warningMessageSegment_r9.fragment_error",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_fragment_count,
+      { "Fragment Count", "lte-rrc.warningMessageSegment_r9.fragment_count",
+         FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_reassembled_in,
+      { "Reassembled In", "lte-rrc.warningMessageSegment_r9.reassembled_in",
+         FT_FRAMENUM, BASE_NONE, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_reassembled_length,
+      { "Reassembled Length", "lte-rrc.warningMessageSegment_r9.reassembled_length",
+         FT_UINT32, BASE_DEC, NULL, 0,
+        NULL, HFILL }},
+    { &hf_lte_rrc_sib12_reassembled_data,
+      { "Reassembled Data", "lte-rrc.warningMessageSegment_r9.reassembled_data",
+         FT_BYTES, BASE_NONE, NULL, 0,
+        NULL, HFILL }}
   };
 
   /* List of subtrees */
@@ -3368,7 +3570,11 @@ void proto_register_lte_rrc(void) {
     &ett_lte_rrc_tdd_FDD_CA_PCellDuplex_r12,
     &ett_lte_rrc_sr_ConfigIndex,
     &ett_lte_rrc_transmissionModeList_r12,
-    &ett_lte_rrc_modifiedMPR_Behavior_r10
+    &ett_lte_rrc_modifiedMPR_Behavior_r10,
+    &ett_lte_rrc_sib11_fragment,
+    &ett_lte_rrc_sib11_fragments,
+    &ett_lte_rrc_sib12_fragment,
+    &ett_lte_rrc_sib12_fragments
   };
 
   static ei_register_info ei[] = {
@@ -3398,6 +3604,7 @@ void proto_register_lte_rrc(void) {
   register_dissector("lte_rrc.pcch", dissect_lte_rrc_PCCH, proto_lte_rrc);
   register_dissector("lte_rrc.mcch", dissect_lte_rrc_MCCH, proto_lte_rrc);
   register_dissector("lte_rrc.handover_prep_info", dissect_lte_rrc_Handover_Preparation_Info, proto_lte_rrc);
+  register_dissector("lte_rrc.sbcch_sl_bch", dissect_lte_rrc_SBCCH_SL_BCH, proto_lte_rrc);
 
   /* Register fields and subtrees */
   proto_register_field_array(proto_lte_rrc, hf, array_length(hf));

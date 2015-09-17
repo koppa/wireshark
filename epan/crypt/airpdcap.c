@@ -328,6 +328,11 @@ AirPDcapDecryptWPABroadcastKey(const EAPOL_RSN_KEY *pEAPKey, guint8  *decryption
     }else if (key_version == AIRPDCAP_WPA_KEY_VER_AES_CCMP){
         /* AES */
         key_bytes_len = pntoh16(pEAPKey->key_data_len);
+
+        /* AES keys must be at least 128 bits = 16 bytes. */
+        if (key_bytes_len < 16) {
+            return;
+        }
     }
 
     if (key_bytes_len > TKIP_GROUP_KEYBYTES_LEN_MAX || key_bytes_len == 0) { /* Don't read past the end of pEAPKey->ie */
@@ -618,8 +623,6 @@ INT AirPDcapPacketProcess(
 {
     const UCHAR *addr;
     AIRPDCAP_SEC_ASSOCIATION_ID id;
-    PAIRPDCAP_SEC_ASSOCIATION sa;
-    int offset = 0;
 
 #ifdef _DEBUG
 #define MSGBUF_LEN 255
@@ -675,15 +678,6 @@ INT AirPDcapPacketProcess(
         return AIRPDCAP_RET_REQ_DATA;
     }
 
-    /* get the Security Association structure for the STA and AP */
-    sa = AirPDcapGetSaPtr(ctx, &id);
-    if (sa == NULL){
-        return AIRPDCAP_RET_UNSUCCESS;
-    }
-
-    /* cache offset in the packet data (to scan encryption data) */
-    offset = mac_header_len;
-
     /* check if data is encrypted (use the WEP bit in the Frame Control field) */
     if (AIRPDCAP_WEP(data[1])==0)
     {
@@ -694,6 +688,17 @@ INT AirPDcapPacketProcess(
         }
     } else {
         if (mngDecrypt) {
+            PAIRPDCAP_SEC_ASSOCIATION sa;
+            int offset = 0;
+
+            /* get the Security Association structure for the STA and AP */
+            sa = AirPDcapGetSaPtr(ctx, &id);
+            if (sa == NULL){
+                return AIRPDCAP_RET_UNSUCCESS;
+            }
+
+            /* cache offset in the packet data (to scan encryption data) */
+            offset = mac_header_len;
 
             if (decrypt_data==NULL)
                 return AIRPDCAP_RET_UNSUCCESS;
@@ -1555,6 +1560,10 @@ AirPDcapStoreSa(
 {
     INT last_free;
 
+    if (ctx->first_free_index>=AIRPDCAP_MAX_SEC_ASSOCIATIONS_NR) {
+        /* there is no empty space available. FAILURE */
+        return -1;
+    }
     if (ctx->sa[ctx->first_free_index].used) {
         /* last addition was in the middle of the array (and the first_free_index was just incremented by 1)   */
         /* search for a free space from the first_free_index to AIRPDCAP_STA_INFOS_NR (to avoid free blocks in */

@@ -551,7 +551,7 @@ dissect_zbee_nwk_full(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
                 }
             } /* (!pinfo->fd->flags.visited) */
             else {
-                if (tree && nwk_hints && nwk_hints->map_rec ) {
+                if (nwk_hints && nwk_hints->map_rec ) {
                     /* Display inferred source address info */
                     ti = proto_tree_add_eui64(nwk_tree, hf_zbee_nwk_src64, tvb, offset, 0,
                             nwk_hints->map_rec->addr64);
@@ -799,13 +799,11 @@ static void dissect_zbee_nwk_cmd(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     if (offset < tvb_captured_length(tvb)) {
         /* There are leftover bytes! */
         tvbuff_t    *leftover_tvb   = tvb_new_subset_remaining(tvb, offset);
-        proto_tree  *root           = NULL;
+        proto_tree  *root;
 
         /* Correct the length of the command tree. */
-        if (tree) {
-            root = proto_tree_get_root(tree);
-            proto_item_set_len(cmd_root, offset);
-        }
+        root = proto_tree_get_root(tree);
+        proto_item_set_len(cmd_root, offset);
 
         /* Dump the leftover to the data dissector. */
         call_dissector(data_handle, leftover_tvb, pinfo, root);
@@ -981,16 +979,12 @@ dissect_zbee_nwk_status(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
 
     /* Get and display the status code. */
     status_code = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_nwk_status, tvb, offset, 1, status_code);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_nwk_status, tvb, offset, 1, status_code);
     offset += 1;
 
     /* Get and display the destination address. */
     addr = tvb_get_letohs(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_route_dest, tvb, offset, 2, addr);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_route_dest, tvb, offset, 2, addr);
     offset += 2;
 
     /* Update the info column. */
@@ -1055,9 +1049,7 @@ dissect_zbee_nwk_route_rec(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
     /* Get and display the relay count. */
     relay_count = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_relay_count, tvb, offset, 1, relay_count);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_relay_count, tvb, offset, 1, relay_count);
     offset += 1;
 
     /* Get and display the relay addresses. */
@@ -1227,16 +1219,12 @@ dissect_zbee_nwk_report(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
     options = tvb_get_guint8(tvb, offset);
     report_count = options & ZBEE_NWK_CMD_NWK_REPORT_COUNT_MASK;
     report_type = options & ZBEE_NWK_CMD_NWK_REPORT_ID_MASK;
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_report_type, tvb, offset, 1, report_type);
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_report_count, tvb, offset, 1, report_count);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_report_type, tvb, offset, 1, report_type);
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_report_count, tvb, offset, 1, report_count);
     offset += 1;
 
     /* Get and display the epid. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_nwk_cmd_epid, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_nwk_cmd_epid, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     if (report_type == ZBEE_NWK_CMD_NWK_REPORT_ID_PAN_CONFLICT) {
@@ -1282,23 +1270,17 @@ dissect_zbee_nwk_update(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gui
     options = tvb_get_guint8(tvb, offset);
     update_count = options & ZBEE_NWK_CMD_NWK_UPDATE_COUNT_MASK;
     update_type = options & ZBEE_NWK_CMD_NWK_UPDATE_ID_MASK;
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_type, tvb, offset, 1, update_type);
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_count, tvb, offset, 1, update_count);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_type, tvb, offset, 1, update_type);
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_count, tvb, offset, 1, update_count);
     offset += 1;
 
     /* Get and display the epid. */
-    if (tree) {
-        proto_tree_add_item(tree, hf_zbee_nwk_cmd_epid, tvb, offset, 8, ENC_LITTLE_ENDIAN);
-    }
+    proto_tree_add_item(tree, hf_zbee_nwk_cmd_epid, tvb, offset, 8, ENC_LITTLE_ENDIAN);
     offset += 8;
 
     /* Get and display the updateID. */
     update_id = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_id, tvb, offset, 1, update_id);
-    }
+    proto_tree_add_uint(tree, hf_zbee_nwk_cmd_update_id, tvb, offset, 1, update_id);
     offset += 1;
 
     if (update_type == ZBEE_NWK_CMD_NWK_UPDATE_ID_PAN_UPDATE) {
@@ -1389,18 +1371,14 @@ static int dissect_zbee_beacon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
     /* Get and display the stack profile and protocol version. */
     version = zbee_get_bit_field(tvb_get_guint8(tvb, offset), ZBEE_NWK_BEACON_PROTOCOL_VERSION);
-    if (tree) {
-        proto_tree_add_item(beacon_tree, hf_zbee_beacon_stack_profile, tvb, offset, 1, ENC_NA);
-        proto_tree_add_item(beacon_tree, hf_zbee_beacon_version, tvb, offset, 1, ENC_NA);
-    }
+    proto_tree_add_item(beacon_tree, hf_zbee_beacon_stack_profile, tvb, offset, 1, ENC_NA);
+    proto_tree_add_item(beacon_tree, hf_zbee_beacon_version, tvb, offset, 1, ENC_NA);
     offset += 1;
 
     /* Get and display the security level and flags. */
-    if (tree) {
-        proto_tree_add_item(beacon_tree, hf_zbee_beacon_router_capacity, tvb, offset, 1, ENC_NA);
-        proto_tree_add_item(beacon_tree, hf_zbee_beacon_depth, tvb, offset, 1, ENC_NA);
-        proto_tree_add_item(beacon_tree, hf_zbee_beacon_end_device_capacity, tvb, offset, 1, ENC_NA);
-    }
+    proto_tree_add_item(beacon_tree, hf_zbee_beacon_router_capacity, tvb, offset, 1, ENC_NA);
+    proto_tree_add_item(beacon_tree, hf_zbee_beacon_depth, tvb, offset, 1, ENC_NA);
+    proto_tree_add_item(beacon_tree, hf_zbee_beacon_end_device_capacity, tvb, offset, 1, ENC_NA);
     offset += 1;
 
     if (version >= ZBEE_VERSION_2007) {
@@ -1442,13 +1420,11 @@ static int dissect_zbee_beacon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
     if (offset < tvb_captured_length(tvb)) {
         /* Bytes leftover! */
         tvbuff_t    *leftover_tvb   = tvb_new_subset_remaining(tvb, offset);
-        proto_tree  *root           = NULL;
+        proto_tree  *root;
 
         /* Correct the length of the beacon tree. */
-        if (tree) {
-            root = proto_tree_get_root(tree);
-            proto_item_set_len(beacon_root, offset);
-        }
+        root = proto_tree_get_root(tree);
+        proto_item_set_len(beacon_root, offset);
 
         /* Dump the leftover to the data dissector. */
         call_dissector(data_handle, leftover_tvb, pinfo, root);
@@ -1523,24 +1499,18 @@ static int dissect_zbip_beacon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
     /* Get and display the protocol id, must be 0x02 on all ZigBee beacons. */
     proto_id = tvb_get_guint8(tvb, offset);
-    if (tree) {
-        proto_tree_add_uint(beacon_tree, hf_zbee_beacon_protocol, tvb, offset, 1, proto_id);
-    }
+    proto_tree_add_uint(beacon_tree, hf_zbee_beacon_protocol, tvb, offset, 1, proto_id);
     offset += 1;
 
     /* Get and display the beacon flags */
-    if (tree) {
-        proto_tree_add_item(beacon_tree, hf_zbip_beacon_allow_join, tvb, offset, 1, ENC_BIG_ENDIAN);
-        proto_tree_add_item(beacon_tree, hf_zbip_beacon_router_capacity, tvb, offset, 1, ENC_BIG_ENDIAN);
-        proto_tree_add_item(beacon_tree, hf_zbip_beacon_host_capacity, tvb, offset, 1, ENC_BIG_ENDIAN);
-        proto_tree_add_item(beacon_tree, hf_zbip_beacon_unsecure, tvb, offset, 1, ENC_BIG_ENDIAN);
-    }
+    proto_tree_add_item(beacon_tree, hf_zbip_beacon_allow_join, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(beacon_tree, hf_zbip_beacon_router_capacity, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(beacon_tree, hf_zbip_beacon_host_capacity, tvb, offset, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(beacon_tree, hf_zbip_beacon_unsecure, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset += 1;
 
     /* Get and display the network ID. */
-    if (tree) {
-        proto_tree_add_item(beacon_tree, hf_zbip_beacon_network_id, tvb, offset, 16, ENC_ASCII|ENC_NA);
-    }
+    proto_tree_add_item(beacon_tree, hf_zbip_beacon_network_id, tvb, offset, 16, ENC_ASCII|ENC_NA);
 
     ssid = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, 16, ENC_ASCII|ENC_NA);
     col_append_fstr(pinfo->cinfo, COL_INFO, ", SSID: %s", ssid);
@@ -1551,13 +1521,11 @@ static int dissect_zbip_beacon(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
         /* TODO: There are TLV's to parse. */
         /* Bytes leftover! */
         tvbuff_t    *leftover_tvb   = tvb_new_subset_remaining(tvb, offset);
-        proto_tree  *root           = NULL;
+        proto_tree  *root;
 
         /* Correct the length of the beacon tree. */
-        if (tree) {
-            root = proto_tree_get_root(tree);
-            proto_item_set_len(beacon_root, offset);
-        }
+        root = proto_tree_get_root(tree);
+        proto_item_set_len(beacon_root, offset);
 
         /* Dump the leftover to the data dissector. */
         call_dissector(data_handle, leftover_tvb, pinfo, root);
@@ -1981,19 +1949,29 @@ void proto_reg_handoff_zbee_nwk(void)
 
     /* Register our dissector with IEEE 802.15.4 */
     dissector_add_for_decode_as(IEEE802154_PROTOABBREV_WPAN_PANID, find_dissector(ZBEE_PROTOABBREV_NWK));
-    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN_BEACON, dissect_zbee_beacon_heur, proto_zbee_beacon);
-    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN_BEACON, dissect_zbip_beacon_heur, proto_zbip_beacon);
-    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN, dissect_zbee_nwk_heur, proto_zbee_nwk);
+    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN_BEACON, dissect_zbee_beacon_heur, "ZigBee Beacon", "zbee_wlan_beacon", proto_zbee_beacon, HEURISTIC_ENABLE);
+    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN_BEACON, dissect_zbip_beacon_heur, "ZigBee IP Beacon", "zbip_wlan_beacon", proto_zbip_beacon, HEURISTIC_ENABLE);
+    heur_dissector_add(IEEE802154_PROTOABBREV_WPAN, dissect_zbee_nwk_heur, "ZigBee Network Layer over IEEE 802.15.4", "zbee_nwk_wlan", proto_zbee_nwk, HEURISTIC_ENABLE);
 
     /* Handoff the ZigBee security dissector code. */
     zbee_security_handoff();
 } /* proto_reg_handoff_zbee */
 
+static void free_keyring_key(gpointer key)
+{
+    g_free(key);
+}
+
 static void free_keyring_val(gpointer a)
 {
     GSList **slist = (GSList **)a;
+#if GLIB_CHECK_VERSION(2, 28, 0)
+    g_slist_free_full(*slist, g_free);
+#else
+    g_slist_foreach(*slist, (GFunc)g_free, NULL);
     g_slist_free(*slist);
-    return;
+#endif /* GLIB_CHECK_VERSION(2, 28, 0) */
+    g_free(slist);
 }
 
 /*FUNCTION:------------------------------------------------------
@@ -2015,7 +1993,7 @@ proto_init_zbee_nwk(void)
 {
     zbee_nwk_map.short_table = g_hash_table_new(ieee802154_short_addr_hash, ieee802154_short_addr_equal);
     zbee_nwk_map.long_table = g_hash_table_new(ieee802154_long_addr_hash, ieee802154_long_addr_equal);
-    zbee_table_nwk_keyring  = g_hash_table_new_full(g_int_hash, g_int_equal, NULL, free_keyring_val);
+    zbee_table_nwk_keyring  = g_hash_table_new_full(g_int_hash, g_int_equal, free_keyring_key, free_keyring_val);
 } /* proto_init_zbee_nwk */
 
 static void

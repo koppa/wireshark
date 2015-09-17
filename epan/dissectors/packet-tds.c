@@ -2442,9 +2442,7 @@ dissect_tds_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
     proto_item *tds_item = NULL;
     proto_tree *tds_tree = NULL;
 
-    while (tvb_reported_length_remaining(tvb, offset) != 0) {
-        length_remaining = tvb_ensure_length_remaining(tvb, offset);
-
+    while ((length_remaining = tvb_reported_length_remaining(tvb, offset)) > 0) {
         /*
          * Can we do reassembly?
          */
@@ -3270,7 +3268,7 @@ proto_reg_handoff_tds(void)
     dissector_add_uint("tcp.port", 1433, tds_tcp_handle);
     dissector_add_uint("tcp.port", 2433, tds_tcp_handle);
 
-    heur_dissector_add("tcp", dissect_tds_tcp_heur, proto_tds);
+    heur_dissector_add("tcp", dissect_tds_tcp_heur, "Tabular Data Stream over TCP", "tds_tcp", proto_tds, HEURISTIC_ENABLE);
 
     ntlmssp_handle = find_dissector("ntlmssp");
     gssapi_handle = find_dissector("gssapi");

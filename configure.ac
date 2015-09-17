@@ -7,7 +7,7 @@
 #
 m4_define([version_major], [1])
 m4_define([version_minor], [99])
-m4_define([version_micro], [8])
+m4_define([version_micro], [10])
 m4_define([version_micro_extra], version_micro)
 m4_append([version_micro_extra], [])
 
@@ -1338,15 +1338,8 @@ darwin*)
 	# with a static version installed in /usr/local/lib rather than
 	# the system version in /usr/lib).
 	#
-	# Also add -Wl,-rpath,@executable_path/../lib and
-	# -Wl,-rpath,/usr/local/lib, so that, if we build an app
-	# bundle, we can tweak all the executable images, shared
-	# libraries, and plugins in the bundle to look for non-system
-	# libraries in the rpath, rather than having a script tweak
-	# DYLD_LIBRARY_PATH.
-	#
-	LDFLAGS="-Wl,-headerpad_max_install_names -Wl,-search_paths_first -Wl,-rpath,@executable_path/../lib -Wl,-rpath,@executable_path/../Frameworks -Wl,-rpath,/usr/local/lib $LDFLAGS"
-	AC_MSG_RESULT([Apple linker - added -Wl,-single_module to shared library linker flags and -Wl,-headerpad_max_install_names -Wl,-search_paths_first and rpaths to all linker flags])
+	LDFLAGS="-Wl,-headerpad_max_install_names -Wl,-search_paths_first $LDFLAGS"
+	AC_MSG_RESULT([Apple linker - added -Wl,-single_module to shared library linker flags and -Wl,-headerpad_max_install_names -Wl,-search_paths_first and -Wl,-headerpad_max_install_names to all linker flags])
 	;;
 cygwin*)
 	#
@@ -1579,7 +1572,7 @@ AC_SUBST(QT_MIN_VERSION)
 # force all programs to be built with GTK+ or Qt.
 #
 # Release dates for GTK+ versions:
-# http://en.wikipedia.org/wiki/GTK+#Releases
+# https://en.wikipedia.org/wiki/GTK+#Releases
 # 2.12.0: 14 Sep 2007
 # 2.14.0: 04 Sep 2008
 # 2.16.0: 13 Mar 2009
@@ -1594,9 +1587,11 @@ AC_SUBST(QT_MIN_VERSION)
 # 3.8.0:  25 Mar 2013
 # 3.10.0: 23 Sep 2013
 # 3.12.0: 25 Mar 2014
+# 3.14.0: 30 Sep 2014
+# 3.16.0: 22 Mar 2015
 #
 # Release dates for Qt versions:
-# http://en.wikipedia.org/wiki/List_of_Qt_releases
+# https://en.wikipedia.org/wiki/List_of_Qt_releases
 # 4.6.0:  01 Dec 2009
 # 4.7.0:  21 Sep 2010
 # 4.8.0:  15 Dec 2011
@@ -1604,6 +1599,8 @@ AC_SUBST(QT_MIN_VERSION)
 # 5.1.0:  03 Jul 2013
 # 5.2.0:  12 Dec 2013
 # 5.3.0:  20 May 2014
+# 5.4.0:  10 Dec 2015
+# 5.5.0:  01 Jul 2015
 
 have_qt=no
 have_gtk=no
@@ -1628,7 +1625,7 @@ if test "x$enable_wireshark" = "xyes"; then
 	fi
 	if test "x$with_qt" != "xno"; then
 		#
-		# Qt was specified; Make sure we have a C++ compiler.
+		# Qt was specified; make sure we have a C++ compiler.
 		#
 		if test -z "$CXX"; then
 			AC_MSG_ERROR(Need a working C++ compiler to build Wireshark with Qt)
@@ -1650,6 +1647,42 @@ if test "x$enable_wireshark" = "xyes"; then
 			# compile.
 			#
 			CPPFLAGS="-DQT_GUI_LIB"
+
+			#
+			# We're building with Qt, so we need the Qt build
+			# tools in order to build the Wireshark GUI.
+			# We've found a particular major version of Qt,
+			# and we want that version's build tools; for
+			# example, the Qt 4 version of uic produces files
+			# that include Qt headers with paths that work
+			# with Qt 4 but not Qt 5, so we can't use the
+			# Qt 4 version of uic if we're building with Qt 5.
+			AC_WIRESHARK_QT_TOOL_CHECK(UIC, uic, "$qt_version")
+			AC_SUBST(UIC)
+			AC_WIRESHARK_QT_TOOL_CHECK(MOC, moc, "$qt_version")
+			AC_SUBST(MOC)
+			AC_WIRESHARK_QT_TOOL_CHECK(RCC, rcc, "$qt_version")
+			AC_SUBST(RCC)
+
+			#
+			# On Darwin, find where the Qt frameworks are
+			# located, and add that to the rpath, just in
+			# case this is Qt 5.5 or later and the frameworks
+			# have an install name that begins with @rpath
+			# and aren't installed in a frameworks directory
+			# that's searched by default.
+			#
+			case "$host_os" in
+			darwin*)
+				if test $qt_version -le 4
+				then
+					Qt_LDFLAGS="-Wl,-rpath,"`$PKG_CONFIG --libs QtCore | sed -e 's/-F//' -e 's/ -framework.*//'`
+				else
+					Qt_LDFLAGS="-Wl,-rpath,"`$PKG_CONFIG --libs Qt${qt_version}Core | sed -e 's/-F//' -e 's/ -framework.*//'`
+				fi
+				;;
+			esac
+			AC_SUBST(Qt_LDFLAGS)
 		],
 		[
 			case "$with_qt" in
@@ -1744,6 +1777,8 @@ AC_SUBST(GLIB_MIN_VERSION)
 # 2.36.0: 25 Mar 2013
 # 2.38.0: 23 Sep 2013
 # 2.40.0: 24 Mar 2014
+# 2.42.0: 22 Sep 2014
+# 2.44.0: 23 Mar 2014
 
 use_glib_cflags="true"
 if test "$have_gtk" = "yes" -a "$have_qt" = "yes" ; then
@@ -1822,33 +1857,6 @@ else
 	# Don't use GLIB_CFLAGS
 	AM_PATH_GLIB_2_0($GLIB_MIN_VERSION, , AC_MSG_ERROR(GLib $GLIB_MIN_VERSION or later distribution not found.), gthread gmodule)
 fi
-
-#
-# If we're building with Qt, we need the Qt build tools in order to
-# build the Wireshark GUI.  We've already found Qt, and found a
-# particular major version, and we want that version's build tools;
-# for example, the Qt 4 version of uic produces files that include
-# Qt headers with paths that work with Qt 4 but not Qt 5, so we can't
-# use the Qt 4 version of uic if we're building with Qt 5.
-#
-# If we're *not* building with Qt, "make dist" requires that we have
-# the Qt build tools, so we *still* need to look for them.  We didn't
-# look for Qt, so we don't know what version(s) we have; we look for
-# whatever version we can find.
-#
-# XXX - but the above comment about Qt 4 vs. Qt 5 means that if we
-# ship files built with the uic from one version of Qt, they won't
-# compile with another major version of Qt, so should we be shipping
-# those files?  If we don't, that means somebody building from a
-# source tarball would need to have the Qt tools installed, but
-# they'll need other developer packages of Qt *anyway*.
-#
-AC_WIRESHARK_QT_TOOL_CHECK(UIC, uic, "$qt_version")
-AC_SUBST(UIC)
-AC_WIRESHARK_QT_TOOL_CHECK(MOC, moc, "$qt_version")
-AC_SUBST(MOC)
-AC_WIRESHARK_QT_TOOL_CHECK(RCC, rcc, "$qt_version")
-AC_SUBST(RCC)
 
 # Error out if a glib header other than a "top level" header
 #  (glib.h, glib-object.h, gio.h) or certain other headers( e.g.,gmodule.h)
@@ -3053,9 +3061,18 @@ else
 	RPMBUILD_WITH_ARGS="--without gtk2 --without gtk3"
 fi
 if test "x$have_qt" = "xyes" ; then
-	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt"
+	if test "$qt_version" -eq "5"; then
+		RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt5"
+	else
+		RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with qt"
+	fi
 else
 	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --without qt"
+fi
+if test "x$have_lua" = "xyes" ; then
+	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --with lua"
+else
+	RPMBUILD_WITH_ARGS="$RPMBUILD_WITH_ARGS --without lua"
 fi
 AC_SUBST(RPMBUILD_WITH_ARGS)
 

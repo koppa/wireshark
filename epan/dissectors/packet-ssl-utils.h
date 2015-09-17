@@ -40,20 +40,13 @@
 
 #include "ws_symbol_export.h"
 
-/* #define SSL_FAST 1 */
 #define SSL_DECRYPT_DEBUG
 #endif /* HAVE_LIBGNUTLS */
 
 #ifdef HAVE_LIBGCRYPT
 #define SSL_CIPHER_CTX gcry_cipher_hd_t
-#ifdef SSL_FAST
-#define SSL_PRIVATE_KEY gcry_mpi_t
-#else /* SSL_FAST */
-#define SSL_PRIVATE_KEY struct gcry_sexp
-#endif /* SSL_FAST */
 #else  /* HAVE_LIBGCRYPT */
 #define SSL_CIPHER_CTX void*
-#define SSL_PRIVATE_KEY void
 #endif /* HAVE_LIBGCRYPT */
 
 
@@ -297,11 +290,25 @@ typedef struct _SslDecoder {
     SslFlow *flow;
 } SslDecoder;
 
-#define KEX_RSA         0x10
-#define KEX_DH          0x11
-#define KEX_PSK         0x12
-#define KEX_ECDH        0x13
-#define KEX_RSA_PSK     0x14
+#define KEX_DHE_DSS     0x10
+#define KEX_DHE_PSK     0x11
+#define KEX_DHE_RSA     0x12
+#define KEX_DH_ANON     0x13
+#define KEX_DH_DSS      0x14
+#define KEX_DH_RSA      0x15
+#define KEX_ECDHE_ECDSA 0x16
+#define KEX_ECDHE_PSK   0x17
+#define KEX_ECDHE_RSA   0x18
+#define KEX_ECDH_ANON   0x19
+#define KEX_ECDH_ECDSA  0x1a
+#define KEX_ECDH_RSA    0x1b
+#define KEX_KRB5        0x1c
+#define KEX_PSK         0x1d
+#define KEX_RSA         0x1e
+#define KEX_RSA_PSK     0x1f
+#define KEX_SRP_SHA     0x20
+#define KEX_SRP_SHA_DSS 0x21
+#define KEX_SRP_SHA_RSA 0x22
 
 #define ENC_DES         0x30
 #define ENC_3DES        0x31
@@ -393,7 +400,9 @@ typedef struct _SslDecryptSession {
     SslDecoder *client;
     SslDecoder *server_new;
     SslDecoder *client_new;
-    SSL_PRIVATE_KEY* private_key;
+#if defined(HAVE_LIBGNUTLS) && defined(HAVE_LIBGCRYPT)
+    gcry_sexp_t private_key;
+#endif
     StringInfo psk;
     guint16 version_netorder;
     StringInfo app_data_segment;
@@ -418,8 +427,12 @@ typedef struct _Ssl_private_key {
 #ifdef HAVE_LIBGNUTLS
     gnutls_x509_crt_t     x509_cert;
     gnutls_x509_privkey_t x509_pkey;
+#ifdef HAVE_LIBGCRYPT
+    gcry_sexp_t           sexp_pkey;
 #endif
-    SSL_PRIVATE_KEY       *sexp_pkey;
+#else
+    void                  *_dummy; /* A struct requires at least one member. */
+#endif
 } Ssl_private_key_t;
 
 /* User Access Table */

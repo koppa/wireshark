@@ -35,6 +35,7 @@
 #include "ui/iface_lists.h"
 #include "ui/preference_utils.h"
 #include "ui/ui_util.h"
+#include "ui/utf8_entities.h"
 
 #include "qt_ui_utils.h"
 
@@ -282,6 +283,10 @@ void ManageInterfacesDialog::pipeAccepted()
         device.if_info.addrs = NULL;
         device.if_info.loopback = FALSE;
         device.if_info.type = IF_PIPE;
+#ifdef HAVE_EXTCAP
+        device.if_info.extcap = NULL;
+        device.external_cap_args_settings = NULL;
+#endif
 #if defined(HAVE_PCAP_CREATE)
         device.monitor_mode_enabled = FALSE;
         device.monitor_mode_supported = FALSE;
@@ -475,7 +480,7 @@ void ManageInterfacesDialog::addRemoteInterfaces(GList* rlist, remote_options *r
     GList *if_entry, *lt_entry;
     if_info_t *if_info;
     char *if_string = NULL;
-    gchar *descr, *str = NULL, *link_type_name = NULL;;
+    gchar *descr, *str = NULL, *link_type_name = NULL, *auth_str;
     if_capabilities_t *caps;
     gint linktype_count;
     bool monitor_mode, found = false;
@@ -490,6 +495,7 @@ void ManageInterfacesDialog::addRemoteInterfaces(GList* rlist, remote_options *r
 
     guint num_interfaces = global_capture_opts.all_ifaces->len;
     for (if_entry = g_list_first(rlist); if_entry != NULL; if_entry = g_list_next(if_entry)) {
+        auth_str = NULL;
         if_info = (if_info_t *)if_entry->data;
         for (i = 0; i < num_interfaces; i++) {
             device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
@@ -546,7 +552,14 @@ void ManageInterfacesDialog::addRemoteInterfaces(GList* rlist, remote_options *r
         }
         device.cfilter = g_strdup(global_capture_opts.default_options.cfilter);
         monitor_mode = prefs_capture_device_monitor_mode(if_string);
-        caps = capture_get_if_capabilities(if_string, monitor_mode, NULL, main_window_update);
+#ifdef HAVE_PCAP_REMOTE
+        if (roptions->remote_host_opts.auth_type == CAPTURE_AUTH_PWD) {
+            auth_str = g_strdup_printf("%s:%s", roptions->remote_host_opts.auth_username,
+                                       roptions->remote_host_opts.auth_password);
+        }
+#endif
+        caps = capture_get_if_capabilities(if_string, monitor_mode, auth_str, NULL, main_window_update);
+        g_free(auth_str);
         for (; (curr_addr = g_slist_nth(if_info->addrs, ips)) != NULL; ips++) {
             address addr_str;
             char* temp_addr_str = NULL;
@@ -791,7 +804,7 @@ QWidget* PathChooserDelegate::createEditor(QWidget *parent, const QStyleOptionVi
     QPushButton *pb = new QPushButton(path_editor_);
 
     path_le_->setText(item->text(col_p_pipe_));
-    pb->setText(QString(tr("Browse...")));
+    pb->setText(QString(tr("Browse" UTF8_HORIZONTAL_ELLIPSIS)));
 
     hbox->setContentsMargins(0, 0, 0, 0);
     hbox->addWidget(path_le_);

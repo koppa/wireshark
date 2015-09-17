@@ -36,6 +36,7 @@ capture_file cfile;
 #include "ui/capture.h"
 
 #include <QFileInfo>
+#include <QTimer>
 
 // To do:
 // - Add getters and (if needed) setters:
@@ -94,6 +95,11 @@ void CaptureFile::retapPackets()
     if (cap_file_) {
         cf_retap_packets(cap_file_);
     }
+}
+
+void CaptureFile::delayedRetapPackets()
+{
+    QTimer::singleShot(0, this, SLOT(retapPackets()));
 }
 
 void CaptureFile::reload()
@@ -180,7 +186,6 @@ void CaptureFile::captureFileEvent(int event, gpointer data)
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Reload finished");
         emit captureFileReloadFinished();
         break;
-
     case(cf_cb_file_rescan_started):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Rescan started");
         emit captureFileRescanStarted();
@@ -188,6 +193,14 @@ void CaptureFile::captureFileEvent(int event, gpointer data)
     case(cf_cb_file_rescan_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Rescan finished");
         emit captureFileRescanFinished();
+        break;
+    case(cf_cb_file_retap_started):
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Retap started");
+        emit captureFileRetapStarted();
+        break;
+    case(cf_cb_file_retap_finished):
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Retap finished");
+        emit captureFileRetapFinished();
         break;
 
     case(cf_cb_file_fast_save_finished):
@@ -214,6 +227,13 @@ void CaptureFile::captureFileEvent(int event, gpointer data)
         break;
     case(cf_cb_file_save_stopped):
         emit captureFileSaveStopped();
+        break;
+
+    case cf_cb_file_export_specified_packets_started:
+    case cf_cb_file_export_specified_packets_finished:
+    case cf_cb_file_export_specified_packets_failed:
+    case cf_cb_file_export_specified_packets_stopped:
+        // Ignored for now
         break;
 
     default:

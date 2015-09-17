@@ -26,7 +26,6 @@
 #include "epan/proto.h"
 #include "epan/rtd_table.h"
 
-#include <QMessageBox>
 #include <QTreeWidget>
 
 #include "qt_ui_utils.h"
@@ -77,13 +76,6 @@ enum {
     col_repeated_requests_,
     col_repeated_responses_
 };
-
-QStringList header_names_ = QStringList()
-        << "Type" << "Messages"
-        << "Min SRT" << "Max SRT" << "Avg SRT"
-        << "Min in Frame" << "Max in Frame"
-        << "Open Requests" << "Discarded Responses"
-        << "Repeated Requests" << "Repeated Responses";
 
 enum {
     rtd_table_type_ = 1000,
@@ -169,18 +161,23 @@ ResponseTimeDelayDialog::ResponseTimeDelayDialog(QWidget &parent, CaptureFile &c
     TapParameterDialog(parent, cf, help_topic),
     rtd_(rtd)
 {
-    QString subtitle = QString("%1 Response Time Delay Statistics")
+    QString subtitle = tr("%1 Response Time Delay Statistics")
             .arg(proto_get_protocol_short_name(find_protocol_by_id(get_rtd_proto_id(rtd))));
     setWindowSubtitle(subtitle);
 
-    statsTreeWidget()->setHeaderLabels(header_names_);
+    QStringList header_names = QStringList()
+            << tr("Type") << tr("Messages")
+            << tr("Min SRT") << tr("Max SRT") << tr("Avg SRT")
+            << tr("Min in Frame") << tr("Max in Frame")
+            << tr("Open Requests") << tr("Discarded Responses")
+            << tr("Repeated Requests") << tr("Repeated Responses");
+
+    statsTreeWidget()->setHeaderLabels(header_names);
 
     for (int col = 0; col < statsTreeWidget()->columnCount(); col++) {
         if (col == col_type_) continue;
         statsTreeWidget()->headerItem()->setTextAlignment(col, Qt::AlignRight);
     }
-
-    setDisplayFilter(filter);
 
     if (!filter.isEmpty()) {
         setDisplayFilter(filter);
@@ -245,31 +242,29 @@ void ResponseTimeDelayDialog::fillTree()
     rtd_table_dissector_init(rtd_, &rtd_data.stat_table, NULL, NULL);
     rtd_data.user_data = this;
 
-    GString *error_string = register_tap_listener(get_rtd_tap_listener_name(rtd_),
+    QByteArray display_filter = displayFilter().toUtf8();
+    if (!registerTapListener(get_rtd_tap_listener_name(rtd_),
                           &rtd_data,
-                          displayFilter(),
+                          display_filter.constData(),
                           0,
                           tapReset,
                           get_rtd_packet_func(rtd_),
-                          tapDraw);
-    if (error_string) {
-        QMessageBox::critical(this, tr("Failed to attach to tap \"%1\"").arg(get_rtd_tap_listener_name(rtd_)),
-                             error_string->str);
-        g_string_free(error_string, TRUE);
+                          tapDraw)) {
         free_rtd_table(&rtd_data.stat_table, NULL, NULL);
-        reject();
+        reject(); // XXX Stay open instead?
+        return;
     }
 
     statsTreeWidget()->setSortingEnabled(false);
 
-    cf_retap_packets(cap_file_.capFile());
+    cap_file_.retapPackets();
 
     tapDraw(&rtd_data);
 
     statsTreeWidget()->sortItems(col_type_, Qt::AscendingOrder);
     statsTreeWidget()->setSortingEnabled(true);
 
-    remove_tap_listener(&rtd_data);
+    removeTapListeners();
     free_rtd_table(&rtd_data.stat_table, NULL, NULL);
 }
 

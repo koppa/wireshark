@@ -2576,7 +2576,7 @@ dissect_sip_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
     gboolean first = TRUE;
     int remaining_length;
 
-    remaining_length = tvb_reported_length(tvb);
+    remaining_length = tvb_captured_length(tvb);
     while (remaining_length > 0) {
         len = dissect_sip_common(tvb, offset, remaining_length, pinfo, tree, !first, TRUE);
         if (len == -2) {
@@ -2602,7 +2602,7 @@ dissect_sip_tcp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 static gboolean
 dissect_sip_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 {
-    int remaining_length = tvb_reported_length(tvb);
+    int remaining_length = tvb_captured_length(tvb);
 
     return dissect_sip_common(tvb, 0, remaining_length, pinfo, tree, FALSE, FALSE) > 0;
 }
@@ -3830,6 +3830,15 @@ dissect_sip_common(tvbuff_t *tvb, int offset, int remaining_length, packet_info 
                                                 &response_time);
     }
 
+    /* Report this packet to the tap */
+    if (!pinfo->flags.in_error_pkt)
+    {
+        tap_queue_packet(sip_tap, pinfo, stat_info);
+        if(have_tap_listener(exported_pdu_tap)){
+            export_sip_pdu(pinfo,tvb);
+        }
+    }
+
     if (datalen > 0) {
         /*
          * There's a message body starting at "offset".
@@ -3987,15 +3996,6 @@ dissect_sip_common(tvbuff_t *tvb, int offset, int remaining_length, packet_info 
 
     if (global_sip_raw_text)
         tvb_raw_text_add(tvb, orig_offset, offset - orig_offset, tree);
-
-    /* Report this packet to the tap */
-    if (!pinfo->flags.in_error_pkt)
-    {
-        tap_queue_packet(sip_tap, pinfo, stat_info);
-        if(have_tap_listener(exported_pdu_tap)){
-            export_sip_pdu(pinfo,tvb);
-        }
-    }
 
     /* Append a brief summary to the SIP root item */
     if (stat_info->request_method) {
@@ -6131,10 +6131,10 @@ proto_reg_handoff_sip(void)
         dissector_add_uint("udp.port", UDP_PORT_SIP, sip_handle);
         dissector_add_string("media_type", "message/sip", sip_handle);
 
-        heur_dissector_add("udp", dissect_sip_heur, proto_sip);
-        heur_dissector_add("tcp", dissect_sip_tcp_heur, proto_sip);
-        heur_dissector_add("sctp", dissect_sip_heur, proto_sip);
-        heur_dissector_add("stun", dissect_sip_heur, proto_sip);
+        heur_dissector_add("udp", dissect_sip_heur, "SIP over UDP", "sip_udp", proto_sip, HEURISTIC_ENABLE);
+        heur_dissector_add("tcp", dissect_sip_tcp_heur, "SIP over TCP", "sip_tcp", proto_sip, HEURISTIC_ENABLE);
+        heur_dissector_add("sctp", dissect_sip_heur, "SIP over SCTP", "sip_sctp", proto_sip, HEURISTIC_ENABLE);
+        heur_dissector_add("stun", dissect_sip_heur, "SIP over TURN", "sip_stun", proto_sip, HEURISTIC_ENABLE);
         sip_prefs_initialized = TRUE;
     } else {
         dissector_delete_uint_range("tcp.port", sip_tcp_port_range, sip_tcp_handle);

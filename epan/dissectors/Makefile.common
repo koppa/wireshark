@@ -229,6 +229,8 @@ FILE_DISSECTOR_SRC = \
 	file-gif.c	\
 	file-jpeg.c	\
 	file-mp4.c	\
+	file-pcap.c	\
+	file-pcapng.c	\
 	file-png.c
 #
 # Dissectors without warnings.
@@ -387,6 +389,7 @@ DISSECTOR_SRC = \
 	packet-cast.c		\
 	packet-catapult-dct2000.c	\
 	packet-cattp.c		\
+	packet-cbor.c		\
 	packet-ccsds.c		\
 	packet-cdp.c		\
 	packet-cell_broadcast.c	\
@@ -927,6 +930,7 @@ DISSECTOR_SRC = \
 	packet-mq-pcf.c		\
 	packet-mq.c		\
 	packet-mqtt.c		\
+	packet-mqtt-sn.c	\
 	packet-mrcpv2.c		\
 	packet-mrdisc.c		\
 	packet-mrp-mmrp.c	\
@@ -940,6 +944,7 @@ DISSECTOR_SRC = \
 	packet-msproxy.c	\
 	packet-msrp.c		\
 	packet-mstp.c		\
+	packet-mswsp.c \
 	packet-mtp2.c		\
 	packet-mtp3.c		\
 	packet-mtp3mg.c		\
@@ -1232,6 +1237,7 @@ DISSECTOR_SRC = \
 	packet-tapa.c		\
 	packet-tcp.c		\
 	packet-tdmoe.c		\
+	packet-tdmop.c		\
 	packet-tds.c		\
 	packet-teamspeak2.c	\
 	packet-teimanagement.c	\
@@ -1337,6 +1343,8 @@ DISSECTOR_SRC = \
 	packet-x29.c		\
 	packet-xcsl.c		\
 	packet-xdmcp.c		\
+	packet-xip.c		\
+	packet-xip-serval.c	\
 	packet-xmcp.c		\
 	packet-xml.c		\
 	packet-xmpp-conference.c	\

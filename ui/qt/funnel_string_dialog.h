@@ -32,6 +32,7 @@ class QLineEdit;
 
 namespace Ui {
 class FunnelStringDialog;
+class FunnelStringDialogHelper;
 }
 
 class FunnelStringDialog : public QDialog
@@ -45,6 +46,9 @@ public:
     // Funnel ops
     static void stringDialogNew(const QString title, const QStringList field_name_list, funnel_dlg_cb_t dialog_cb, void* dialog_cb_data);
 
+    void accept();
+    void reject();
+
 private slots:
     void on_buttonBox_accepted();
 
@@ -55,8 +59,20 @@ private:
     QList<QLineEdit *> field_edits_;
 };
 
+class FunnelStringDialogHelper : public QObject
+{
+    Q_OBJECT;
+
+public slots:
+    void emitCloseDialogs();
+
+signals:
+    void closeDialogs();
+};
+
 extern "C" {
 void string_dialog_new(const gchar* title, const gchar** fieldnames, funnel_dlg_cb_t dialog_cb, void* dialog_cb_data);
+void string_dialogs_close(void);
 }
 
 #endif // FUNNEL_STRING_DIALOG_H

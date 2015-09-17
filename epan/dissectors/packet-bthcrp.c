@@ -249,7 +249,7 @@ dissect_control(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
                 guint8 *id;
 
                 proto_tree_add_item(tree, hf_bthcrp_control_1284_id, tvb, offset, tvb_reported_length_remaining(tvb, offset), ENC_ASCII | ENC_NA);
-                id = tvb_get_string_enc(NULL, tvb, offset, tvb_reported_length_remaining(tvb, offset), ENC_ASCII);
+                id = tvb_get_string_enc(wmem_packet_scope(), tvb, offset, tvb_reported_length_remaining(tvb, offset), ENC_ASCII);
                 col_append_fstr(pinfo->cinfo, COL_INFO, " - 1284 ID: %s", id);
                 offset += tvb_reported_length_remaining(tvb, offset);
             }
@@ -677,12 +677,12 @@ proto_reg_handoff_bthcrp(void)
 {
     data_handle = find_dissector("data");
 
-    dissector_add_uint("btl2cap.service", BTSDP_HARDCOPY_CONTROL_CHANNEL_PROTOCOL_UUID, bthcrp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_HARDCOPY_DATA_CHANNEL_PROTOCOL_UUID, bthcrp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_HARDCOPY_NOTIFICATION_PROTOCOL_UUID, bthcrp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_HCRP_PRINT_SERVICE_UUID, bthcrp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_HCRP_SCAN_SERVICE_UUID, bthcrp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_HCRP_SERVICE_UUID, bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "12", bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "14", bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "16", bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "1125", bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "1126", bthcrp_handle);
+    dissector_add_string("bluetooth.uuid", "1127", bthcrp_handle);
 
     dissector_add_for_decode_as("btl2cap.psm", bthcrp_handle);
     dissector_add_for_decode_as("btl2cap.cid", bthcrp_handle);

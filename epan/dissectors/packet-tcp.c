@@ -400,7 +400,7 @@ static gboolean tcp_exp_options_with_magic = TRUE;
 #define TCPOLEN_CORREXP        2
 #define TCPOLEN_QS             8
 #define TCPOLEN_USER_TO        4
-#define TCPOLEN_MPTCP_MIN      8
+#define TCPOLEN_MPTCP_MIN      3
 #define TCPOLEN_TFO_MIN        2
 #define TCPOLEN_RVBD_PROBE_MIN 3
 #define TCPOLEN_RVBD_TRPY_MIN 16
@@ -742,10 +742,15 @@ get_tcp_conversation_data(conversation_t *conv, packet_info *pinfo)
 {
     int direction;
     struct tcp_analysis *tcpd;
+    gboolean clear_ta = TRUE;
 
     /* Did the caller supply the conversation pointer? */
-    if( conv==NULL )
-            conv = find_or_create_conversation(pinfo);
+    if( conv==NULL ) {
+        /* If the caller didn't supply a conversation, don't
+         * clear the analysis, it may be needed */
+        clear_ta = FALSE;
+        conv = find_or_create_conversation(pinfo);
+    }
 
     /* Get the data for this conversation */
     tcpd=(struct tcp_analysis *)conversation_get_proto_data(conv, proto_tcp);
@@ -778,7 +783,9 @@ get_tcp_conversation_data(conversation_t *conv, packet_info *pinfo)
         tcpd->rev=&(tcpd->flow1);
     }
 
-    tcpd->ta=NULL;
+    if (clear_ta) {
+        tcpd->ta=NULL;
+    }
     return tcpd;
 }
 
@@ -1282,8 +1289,8 @@ tcp_analyze_sequence_number(packet_info *pinfo, guint32 seq, guint32 ack, guint3
 
 
 finished_fwd:
-    /* If this was NOT a dupack we must reset the dupack counters */
-    if( (!tcpd->ta) || !(tcpd->ta->flags&TCP_A_DUPLICATE_ACK) ) {
+    /* If the ack number changed we must reset the dupack counters */
+    if( ack != tcpd->fwd->lastack ) {
         tcpd->fwd->lastnondupack=pinfo->fd->num;
         tcpd->fwd->dupacknum=0;
     }
@@ -1369,7 +1376,7 @@ finished_fwd:
         }
 
         /* Check for spurious retransmission. If the current seq + segment length
-         * is less then the receivers lastask, the packet contains duplicated
+         * is less then the receivers lastack, the packet contains duplicated
          * data and may be considered spurious.
          */
         if ( seq + seglen < tcpd->rev->lastack ) {
@@ -1423,9 +1430,14 @@ finished_checking_retransmission_type:
     }
 
     /* Store the highest continuous seq number seen so far for 'max seq to be acked',
-     so we can detect TCP_A_ACK_LOST_PACKET condition
+     so we can detect TCP_A_ACK_LOST_PACKET condition.
+     Notes:
+        A retransmitted segment can include additional data not previously seen.
+        XXX: It seems that the additional data may never be dissected (by a sub-dissector)
+             since the whole segment is marked as being a retransmission.
      */
-    if(EQ_SEQ(seq, tcpd->fwd->maxseqtobeacked) || !tcpd->fwd->maxseqtobeacked) {
+    if((LE_SEQ(seq, tcpd->fwd->maxseqtobeacked) && GT_SEQ(tcpd->fwd->nextseq, tcpd->fwd->maxseqtobeacked))
+       || !tcpd->fwd->maxseqtobeacked) {
         if( !tcpd->ta || !(tcpd->ta->flags&TCP_A_ZERO_WINDOW_PROBE) ) {
             tcpd->fwd->maxseqtobeacked=tcpd->fwd->nextseq;
         }

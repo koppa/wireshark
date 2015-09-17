@@ -320,7 +320,8 @@ static int hf_isakmp_cfg_attr_internal_ip4_nbns = -1;
 static int hf_isakmp_cfg_attr_internal_address_expiry = -1;
 static int hf_isakmp_cfg_attr_internal_ip4_dhcp = -1;
 static int hf_isakmp_cfg_attr_application_version = -1;
-static int hf_isakmp_cfg_attr_internal_ip6_address = -1;
+static int hf_isakmp_cfg_attr_internal_ip6_address_ip = -1;
+static int hf_isakmp_cfg_attr_internal_ip6_address_prefix = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_netmask = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_dns = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_nbns = -1;
@@ -334,6 +335,8 @@ static int hf_isakmp_cfg_attr_internal_ip6_link_interface = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_link_id = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_prefix_ip = -1;
 static int hf_isakmp_cfg_attr_internal_ip6_prefix_length = -1;
+static int hf_isakmp_cfg_attr_p_cscf_ip4_address = -1;
+static int hf_isakmp_cfg_attr_p_cscf_ip6_address = -1;
 static int hf_isakmp_cfg_attr_xauth_type = -1;
 static int hf_isakmp_cfg_attr_xauth_user_name = -1;
 static int hf_isakmp_cfg_attr_xauth_user_password = -1;
@@ -447,6 +450,7 @@ static const fragment_items isakmp_frag_items = {
  *   draft-ietf-ipsec-isakmp-xauth-06.txt and draft-beaulieu-ike-xauth-02.txt for XAUTH
  *   RFC4306 for IKEv2
  *   RFC5739 for INTERNAL_IP6_LINK and INTERNAL_IP6_PREFIX
+ *   draft-gundavelli-ipsecme-3gpp-ims-options for P_CSCF_IP4_ADDRESS and P_CSCF_IP6_ADDRESS
  */
 #define INTERNAL_IP4_ADDRESS            1
 #define INTERNAL_IP4_NETMASK            2
@@ -466,6 +470,8 @@ static const fragment_items isakmp_frag_items = {
 #define MIP6_HOME_PREFIX                16
 #define INTERNAL_IP6_LINK               17
 #define INTERNAL_IP6_PREFIX             18
+#define P_CSCF_IP4_ADDRESS              20
+#define P_CSCF_IP6_ADDRESS              21
 /* checkpoint configuration attributes */
 #define CHKPT_DEF_DOMAIN                16387
 #define CHKPT_MAC_ADDRESS               16388
@@ -1042,8 +1048,9 @@ static const value_string transform_ike2_encr_type[] = {
   { 25, "ENCR_CAMELLIA_CCM with an 8-octet ICV" },      /* [RFC5529] */
   { 26, "ENCR_CAMELLIA_CCM with a 12-octet ICV" },      /* [RFC5529] */
   { 27, "ENCR_CAMELLIA_CCM with a 16-octet ICV" },      /* [RFC5529] */
+  { 28, "ENCR_CHACHA20_POLY1305" },                     /* [RFC7634] */
 /*
- *              28-1023    RESERVED TO IANA         [RFC4306]
+ *              29-1023    RESERVED TO IANA         [RFC4306]
  *              1024-65535    PRIVATE USE           [RFC4306]
  */
     { 0,        NULL },
@@ -1388,7 +1395,10 @@ static const range_string vs_v2_cfgattr[] = {
   { 17,17,       "INTERNAL_IP6_LINK" },
   { 18,18,       "INTERNAL_IP6_PREFIX" },
   { 19,19,       "HOME_AGENT_ADDRESS" },        /* 3GPP TS 24.302 http://www.3gpp.org/ftp/Specs/html-info/24302.htm */
-  { 20,16383,    "RESERVED TO IANA"},
+  { 20,20,       "P_CSCF_IP4_ADDRESS" },        /* 3GPP IMS Option for IKEv2 https://datatracker.ietf.org/doc/draft-gundavelli-ipsecme-3gpp-ims-options/ */
+  { 21,21,       "P_CSCF_IP6_ADDRESS" },
+  { 22,22,       "FTT_KAT" },
+  { 23,16383,    "RESERVED TO IANA"},
   { 16384,32767, "PRIVATE USE"},
   { 0,0,          NULL },
   };
@@ -2648,8 +2658,8 @@ dissect_payloads(tvbuff_t *tvb, proto_tree *tree,
                 int isakmp_version, guint8 initial_payload, int offset, int length,
                 packet_info *pinfo, guint32 message_id, gboolean is_request, void* decr_data)
 {
-  guint8         payload, next_payload;
-  guint16        payload_length;
+  guint8         payload, next_payload = 0;
+  guint16        payload_length = 0;
   proto_tree *   ntree;
 
   for (payload = initial_payload; length > 0; payload = next_payload) {
@@ -4481,12 +4491,14 @@ dissect_config_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *cfg_attr
     case INTERNAL_IP6_ADDRESS: /* 8 */
       offset_end = offset + optlen;
 
-      if (optlen%16 == 0)
+      if (optlen%17 == 0)
       {
         while (offset_end-offset > 0)
         {
-          proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_internal_ip6_address, tvb, offset, 16, ENC_BIG_ENDIAN);
+          proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_internal_ip6_address_ip, tvb, offset, 16, ENC_NA);
           offset += 16;
+          proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_internal_ip6_address_prefix, tvb, offset, 1, ENC_BIG_ENDIAN);
+          offset += 1;
         }
 
       }
@@ -4591,6 +4603,31 @@ dissect_config_attribute(tvbuff_t *tvb, packet_info *pinfo, proto_tree *cfg_attr
           offset += 16;
           proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_internal_ip6_prefix_length, tvb, offset, 1, ENC_BIG_ENDIAN);
           offset += 1;
+        }
+
+      }
+      break;
+    case P_CSCF_IP4_ADDRESS: /* 20 */
+      offset_end = offset + optlen;
+
+      if (optlen%4 == 0)
+      {
+        while (offset_end-offset > 0)
+        {
+          proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_p_cscf_ip4_address, tvb, offset, 4, ENC_BIG_ENDIAN);
+          offset += 4;
+        }
+      }
+      break;
+    case P_CSCF_IP6_ADDRESS: /* 21 */
+      offset_end = offset + optlen;
+
+      if (optlen%16 == 0)
+      {
+        while (offset_end-offset > 0)
+        {
+          proto_tree_add_item(sub_cfg_attr_type_tree, hf_isakmp_cfg_attr_p_cscf_ip6_address, tvb, offset, 16, ENC_NA);
+          offset += 16;
         }
 
       }
@@ -5645,27 +5682,27 @@ proto_register_isakmp(void)
 
         /* ROHC Attributes Type */
     { &hf_isakmp_notify_data_rohc_attr,
-      { "ROHC Attribute Type",  "isakmp.notify.data.rohc.attr",
+      { "ROHC Attribute Type", "isakmp.notify.data.rohc.attr",
         FT_NONE, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_type,
-      { "ROHC Attribute Type",  "isakmp.notify.data.rohc.attr.type",
+      { "ROHC Attribute Type", "isakmp.notify.data.rohc.attr.type",
         FT_UINT16, BASE_DEC, VALS(rohc_attr_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_format,
-      { "ROHC Format",  "isakmp.notify.data.rohc.attr.format",
+      { "ROHC Format", "isakmp.notify.data.rohc.attr.format",
         FT_BOOLEAN, 16, TFS(&attribute_format), 0x8000,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_length,
-      { "Length",       "isakmp.notify.data.rohc.attr.length",
+      { "Length", "isakmp.notify.data.rohc.attr.length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_value,
-      { "Value",        "isakmp.notify.data.rohc.attr.value",
+      { "Value", "isakmp.notify.data.rohc.attr.value",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_max_cid,
-      { "Maximum Context Identifier",   "isakmp.notify.data.rohc.attr.max_cid",
+      { "Maximum Context Identifier", "isakmp.notify.data.rohc.attr.max_cid",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_profile,
@@ -5673,11 +5710,11 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_integ,
-      { "ROHC Integrity Algorithm",     "isakmp.notify.data.rohc.attr.integ",
+      { "ROHC Integrity Algorithm", "isakmp.notify.data.rohc.attr.integ",
         FT_UINT16, BASE_DEC, VALS(transform_ike2_integ_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_icv_len,
-      { "ROHC ICV Length in bytes",     "isakmp.notify.data.rohc.attr.icv_len",
+      { "ROHC ICV Length in bytes", "isakmp.notify.data.rohc.attr.icv_len",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         "In bytes", HFILL }},
     { &hf_isakmp_notify_data_rohc_attr_mrru,
@@ -5934,89 +5971,89 @@ proto_register_isakmp(void)
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_nat_original_address_ipv4,
-      { "NAT Original IPv4 Address",    "isakmp.ike.nat_original_address_ipv4",
+      { "NAT Original IPv4 Address", "isakmp.ike.nat_original_address_ipv4",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_nat_original_address_ipv6,
-      { "NAT Original IPv6 Address",    "isakmp.ike.nat_original_address_ipv6",
+      { "NAT Original IPv6 Address", "isakmp.ike.nat_original_address_ipv6",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
 
         /* Transform Attributes Type */
     { &hf_isakmp_tf_attr,
-      { "Transform Attribute Type",     "isakmp.tf.attr",
+      { "Transform Attribute Type", "isakmp.tf.attr",
         FT_NONE, BASE_NONE, NULL, 0x00,
         "ISAKMP Transform Attribute", HFILL }},
     { &hf_isakmp_tf_attr_type_v1,
-      { "Transform Attribute Type",     "isakmp.tf.attr.type_v1",
+      { "Transform Attribute Type", "isakmp.tf.attr.type_v1",
         FT_UINT16, BASE_DEC, VALS(transform_isakmp_attr_type), 0x00,
         "ISAKMP (v1) Transform Attribute type", HFILL }},
     { &hf_isakmp_tf_attr_format,
-      { "Transform Format",     "isakmp.tf.attr.format",
+      { "Transform Format", "isakmp.tf.attr.format",
         FT_BOOLEAN, 16, TFS(&attribute_format), 0x8000,
         "ISAKMP Transform Attribute Format", HFILL }},
     { &hf_isakmp_tf_attr_length,
-      { "Length",       "isakmp.tf.attr.length",
+      { "Length", "isakmp.tf.attr.length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         "ISAKMP Tranform Attribute length", HFILL }},
     { &hf_isakmp_tf_attr_value,
-      { "Value",        "isakmp.tf.attr.value",
+      { "Value", "isakmp.tf.attr.value",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         "ISAKMP Transform Attribute value", HFILL }},
     { &hf_isakmp_tf_attr_life_type,
-      { "Life Type",    "isakmp.tf.attr.life_type",
+      { "Life Type", "isakmp.tf.attr.life_type",
         FT_UINT16, BASE_DEC, VALS(transform_attr_sa_life_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_life_duration_uint32,
-      { "Life Duration",        "isakmp.tf.attr.life_duration",
+      { "Life Duration", "isakmp.tf.attr.life_duration",
         FT_UINT32, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_life_duration_uint64,
-      { "Life Duration",        "isakmp.tf.attr.life_duration",
+      { "Life Duration", "isakmp.tf.attr.life_duration",
         FT_UINT64, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_life_duration_bytes,
-      { "Life Duration",        "isakmp.tf.attr.life_duration",
+      { "Life Duration", "isakmp.tf.attr.life_duration",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_group_description,
-      { "Group Description",    "isakmp.tf.attr.group_description",
+      { "Group Description", "isakmp.tf.attr.group_description",
         FT_UINT16, BASE_DEC, VALS(transform_dh_group_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_encap_mode,
-      { "Encapsulation Mode",   "isakmp.tf.attr.encap_mode",
+      { "Encapsulation Mode", "isakmp.tf.attr.encap_mode",
         FT_UINT16, BASE_DEC, VALS(transform_attr_encap_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_auth_algorithm,
-      { "Authentication Algorithm",     "isakmp.tf.attr.auth_algorithm",
+      { "Authentication Algorithm", "isakmp.tf.attr.auth_algorithm",
         FT_UINT16, BASE_DEC, VALS(transform_attr_auth_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_key_length,
-      { "Key Length",   "isakmp.tf.attr.key_length",
+      { "Key Length", "isakmp.tf.attr.key_length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_key_rounds,
-      { "Key Rounds",   "isakmp.tf.attr.key_rounds",
+      { "Key Rounds", "isakmp.tf.attr.key_rounds",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_cmpr_dict_size,
-      { "Compress Dictionary Size",     "isakmp.tf.attr.cmpr_dict_size",
+      { "Compress Dictionary Size", "isakmp.tf.attr.cmpr_dict_size",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_cmpr_algorithm,
-      { "Compress Private Algorithm",   "isakmp.tf.attr.cmpr_algorithm",
+      { "Compress Private Algorithm", "isakmp.tf.attr.cmpr_algorithm",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_ecn_tunnel,
-      { "ECN Tunnel",   "isakmp.tf.attr.ecn_tunnel",
+      { "ECN Tunnel", "isakmp.tf.attr.ecn_tunnel",
         FT_UINT16, BASE_DEC, VALS(transform_attr_ecn_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_ext_seq_nbr,
-      { "Extended (64-bit) Sequence Number",    "isakmp.tf.attr.ext_seq_nbr",
+      { "Extended (64-bit) Sequence Number", "isakmp.tf.attr.ext_seq_nbr",
         FT_UINT16, BASE_DEC, VALS(transform_attr_ext_seq_nbr_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_auth_key_length,
-      { "Authentication Key Length",    "isakmp.tf.attr.auth_key_length",
+      { "Authentication Key Length", "isakmp.tf.attr.auth_key_length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_tf_attr_sig_enco_algorithm,
@@ -6045,11 +6082,11 @@ proto_register_isakmp(void)
         FT_BOOLEAN, 16, TFS(&attribute_format), 0x8000,
         "IKE Transform Attribute Format", HFILL }},
     { &hf_isakmp_ike_attr_length,
-      { "Length",       "isakmp.ike.attr.length",
+      { "Length", "isakmp.ike.attr.length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         "IKE Tranform Attribute length", HFILL }},
     { &hf_isakmp_ike_attr_value,
-      { "Value",        "isakmp.ike.attr.value",
+      { "Value", "isakmp.ike.attr.value",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         "IKE Transform Attribute value", HFILL }},
 
@@ -6058,19 +6095,19 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, VALS(transform_attr_enc_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_hash_algorithm,
-      { "HASH Algorithm",       "isakmp.ike.attr.hash_algorithm",
+      { "HASH Algorithm", "isakmp.ike.attr.hash_algorithm",
         FT_UINT16, BASE_DEC, VALS(transform_attr_hash_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_authentication_method,
-      { "Authentication Method",        "isakmp.ike.attr.authentication_method",
+      { "Authentication Method", "isakmp.ike.attr.authentication_method",
         FT_UINT16, BASE_DEC, VALS(transform_attr_authmeth_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_description,
-      { "Group Description",    "isakmp.ike.attr.group_description",
+      { "Group Description", "isakmp.ike.attr.group_description",
         FT_UINT16, BASE_DEC, VALS(transform_dh_group_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_type,
-      { "Groupe Type",  "isakmp.ike.attr.group_type",
+      { "Groupe Type", "isakmp.ike.attr.group_type",
         FT_UINT16, BASE_DEC, VALS(transform_attr_grp_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_prime,
@@ -6086,57 +6123,57 @@ proto_register_isakmp(void)
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_curve_a,
-      { "Groupe Curve A",       "isakmp.ike.attr.group_curve_a",
+      { "Groupe Curve A", "isakmp.ike.attr.group_curve_a",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_curve_b,
-      { "Groupe Curve B",       "isakmp.ike.attr.group_curve_b",
+      { "Groupe Curve B", "isakmp.ike.attr.group_curve_b",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_life_type,
-      { "Life Type",    "isakmp.ike.attr.life_type",
+      { "Life Type", "isakmp.ike.attr.life_type",
         FT_UINT16, BASE_DEC, VALS(transform_attr_sa_life_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_life_duration_uint32,
-      { "Life Duration",        "isakmp.ike.attr.life_duration",
+      { "Life Duration", "isakmp.ike.attr.life_duration",
         FT_UINT32, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_life_duration_uint64,
-      { "Life Duration",        "isakmp.ike.attr.life_duration",
+      { "Life Duration", "isakmp.ike.attr.life_duration",
         FT_UINT64, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_life_duration_bytes,
-      { "Life Duration",        "isakmp.ike.attr.life_duration",
+      { "Life Duration", "isakmp.ike.attr.life_duration",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_prf,
-      { "PRF",  "isakmp.ike.attr.prf",
+      { "PRF", "isakmp.ike.attr.prf",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_key_length,
-      { "Key Length",   "isakmp.ike.attr.key_length",
+      { "Key Length", "isakmp.ike.attr.key_length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_field_size,
-      { "Field Size",   "isakmp.ike.attr.field_size",
+      { "Field Size", "isakmp.ike.attr.field_size",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike_attr_group_order,
-      { "Key Length",   "isakmp.ike.attr.group_order",
+      { "Key Length", "isakmp.ike.attr.group_order",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
 
     { &hf_isakmp_trans_type,
-      { "Transform Type",       "isakmp.tf.type",
+      { "Transform Type", "isakmp.tf.type",
         FT_UINT8, BASE_RANGE_STRING | BASE_DEC, RVALS(transform_ike2_type), 0x00,
         NULL, HFILL }},
 
     { &hf_isakmp_trans_encr,
-      { "Transform ID (ENCR)",  "isakmp.tf.id.encr",
+      { "Transform ID (ENCR)", "isakmp.tf.id.encr",
         FT_UINT16, BASE_DEC, VALS(transform_ike2_encr_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_trans_prf,
-      { "Transform ID (PRF)",   "isakmp.tf.id.prf",
+      { "Transform ID (PRF)", "isakmp.tf.id.prf",
         FT_UINT16, BASE_DEC, VALS(transform_ike2_prf_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_trans_integ,
@@ -6144,11 +6181,11 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, VALS(transform_ike2_integ_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_trans_dh,
-      { "Transform ID (D-H)",   "isakmp.tf.id.dh",
+      { "Transform ID (D-H)", "isakmp.tf.id.dh",
         FT_UINT16, BASE_DEC, VALS(transform_dh_group_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_trans_esn,
-      { "Transform ID (ESN)",   "isakmp.tf.id.esn",
+      { "Transform ID (ESN)", "isakmp.tf.id.esn",
         FT_UINT16, BASE_DEC, VALS(transform_ike2_esn_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_trans_id_v2,
@@ -6156,41 +6193,41 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_ike2_attr,
-      { "Transform IKE2 Attribute Type",        "isakmp.ike2.attr",
+      { "Transform IKE2 Attribute Type", "isakmp.ike2.attr",
         FT_NONE, BASE_NONE, NULL, 0x00,
         "IKE2 Transform Attribute", HFILL }},
     { &hf_isakmp_ike2_attr_type,
-      { "Transform IKE2 Attribute Type",        "isakmp.ike2.attr.type",
+      { "Transform IKE2 Attribute Type", "isakmp.ike2.attr.type",
         FT_UINT16, BASE_DEC, VALS(transform_ike2_attr_type), 0x00,
         "IKE2 Transform Attribute type", HFILL }},
     { &hf_isakmp_ike2_attr_format,
-      { "Transform IKE2 Format",        "isakmp.ike2.attr.format",
+      { "Transform IKE2 Format", "isakmp.ike2.attr.format",
         FT_BOOLEAN, 16, TFS(&attribute_format), 0x8000,
         "IKE2 Transform Attribute Format", HFILL }},
     { &hf_isakmp_ike2_attr_length,
-      { "Length",       "isakmp.ike2.attr.length",
+      { "Length", "isakmp.ike2.attr.length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         "IKE2 Tranform Attribute length", HFILL }},
     { &hf_isakmp_ike2_attr_value,
-      { "Value",        "isakmp.ike2.attr.value",
+      { "Value", "isakmp.ike2.attr.value",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         "IKE2 Transform Attribute value", HFILL }},
     { &hf_isakmp_ike2_attr_key_length,
-      { "Key Length",   "isakmp.ike2.attr.key_length",
+      { "Key Length", "isakmp.ike2.attr.key_length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
 
 
     { &hf_isakmp_key_exch_dh_group,
-      { "DH Group #",   "isakmp.key_exchange.dh_group",
+      { "DH Group #", "isakmp.key_exchange.dh_group",
         FT_UINT16, BASE_DEC, VALS(transform_dh_group_type), 0x00,
         NULL, HFILL }},
     { &hf_isakmp_key_exch_data,
-      { "Key Exchange Data",    "isakmp.key_exchange.data",
+      { "Key Exchange Data", "isakmp.key_exchange.data",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_eap_data,
-      { "EAP Message",  "isakmp.eap.data",
+      { "EAP Message", "isakmp.eap.data",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
 
@@ -6213,7 +6250,7 @@ proto_register_isakmp(void)
          "ISAKMP (v2) Config Type", HFILL }},
         /* Config Attributes Type */
     { &hf_isakmp_cfg_attr,
-      { "Config Attribute Type",        "isakmp.cfg.attr",
+      { "Config Attribute Type", "isakmp.cfg.attr",
         FT_NONE, BASE_NONE, NULL, 0x00,
         "ISAKMP Config Attribute", HFILL }},
     { &hf_isakmp_cfg_attr_type_v1,
@@ -6225,15 +6262,15 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_RANGE_STRING | BASE_DEC, RVALS(vs_v2_cfgattr), 0x00,
         "ISAKMP (v2) Config Attribute type", HFILL }},
     { &hf_isakmp_cfg_attr_format,
-      { "Config Attribute Format",      "isakmp.cfg.attr.format",
+      { "Config Attribute Format", "isakmp.cfg.attr.format",
         FT_BOOLEAN, 16, TFS(&attribute_format), 0x8000,
         "ISAKMP Config Attribute Format", HFILL }},
     { &hf_isakmp_cfg_attr_length,
-      { "Length",       "isakmp.cfg.attr.length",
+      { "Length", "isakmp.cfg.attr.length",
         FT_UINT16, BASE_DEC, NULL, 0x00,
         "ISAKMP Config Attribute length", HFILL }},
     { &hf_isakmp_cfg_attr_value,
-      { "Value",        "isakmp.cfg.attr.value",
+      { "Value", "isakmp.cfg.attr.value",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         "ISAKMP Config Attribute value", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_address,
@@ -6245,51 +6282,55 @@ proto_register_isakmp(void)
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "The internal network's netmask", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_dns,
-      { "INTERNAL IP4 DNS",     "isakmp.cfg.attr.internal_ip4_dns",
+      { "INTERNAL IP4 DNS", "isakmp.cfg.attr.internal_ip4_dns",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "An IPv4 address of a DNS server within the network", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_nbns,
-      { "INTERNAL IP4 NBNS",    "isakmp.cfg.attr.internal_ip4_nbns",
+      { "INTERNAL IP4 NBNS", "isakmp.cfg.attr.internal_ip4_nbns",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "An IPv4 address of a NetBios Name Server (WINS) within the network", HFILL }},
     { &hf_isakmp_cfg_attr_internal_address_expiry,
-      { "INTERNAL ADDRESS EXPIRY (Secs)",       "isakmp.cfg.attr.internal_address_expiry",
+      { "INTERNAL ADDRESS EXPIRY (Secs)", "isakmp.cfg.attr.internal_address_expiry",
         FT_UINT32, BASE_DEC, NULL, 0x00,
         "Specifies the number of seconds that the host can use the internal IP address", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_dhcp,
-      { "INTERNAL IP4 DHCP",    "isakmp.cfg.attr.internal_ip4_dhcp",
+      { "INTERNAL IP4 DHCP", "isakmp.cfg.attr.internal_ip4_dhcp",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "the host to send any internal DHCP requests to the address", HFILL }},
     { &hf_isakmp_cfg_attr_application_version,
-      { "APPLICATION VERSION",  "isakmp.cfg.attr.application_version",
+      { "APPLICATION VERSION", "isakmp.cfg.attr.application_version",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "The version or application information of the IPsec host", HFILL }},
-    { &hf_isakmp_cfg_attr_internal_ip6_address,
+    { &hf_isakmp_cfg_attr_internal_ip6_address_ip,
       { "INTERNAL IP6 ADDRESS", "isakmp.cfg.attr.internal_ip6_address",
-        FT_IPv4, BASE_NONE, NULL, 0x00,
+        FT_IPv6, BASE_NONE, NULL, 0x00,
         "An IPv6 address on the internal network", HFILL }},
+    { &hf_isakmp_cfg_attr_internal_ip6_address_prefix,
+      { "INTERNAL IP6 ADDRESS (PREFIX)", "isakmp.cfg.attr.internal_ip6_address.prefix",
+        FT_UINT8, BASE_DEC, NULL, 0x00,
+        NULL, HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_netmask,
       { "INTERNAL IP4 NETMASK", "isakmp.cfg.attr.internal_ip6_netmask",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         "The internal network's netmask", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_dns,
-      { "INTERNAL IP6 DNS",     "isakmp.cfg.attr.internal_ip6_dns",
+      { "INTERNAL IP6 DNS", "isakmp.cfg.attr.internal_ip6_dns",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         "An IPv6 address of a DNS server within the network", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_nbns,
-      { "INTERNAL IP6 NBNS",    "isakmp.cfg.attr.internal_ip6_nbns",
+      { "INTERNAL IP6 NBNS", "isakmp.cfg.attr.internal_ip6_nbns",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         "An IPv6 address of a NetBios Name Server (WINS) within the network", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_dhcp,
-      { "INTERNAL IP6 DHCP",    "isakmp.cfg.attr.internal_ip6_dhcp",
+      { "INTERNAL IP6 DHCP", "isakmp.cfg.attr.internal_ip6_dhcp",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         "The host to send any internal DHCP requests to the address", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_subnet_ip,
-      { "INTERNAL IP4 SUBNET (IP)",     "isakmp.cfg.attr.internal_ip4_subnet_ip",
+      { "INTERNAL IP4 SUBNET (IP)", "isakmp.cfg.attr.internal_ip4_subnet_ip",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "The protected sub-networks that this edge-device protects (IP)", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip4_subnet_netmask,
-      { "INTERNAL IP4 SUBNET (NETMASK)",        "isakmp.cfg.attr.internal_ip4_subnet_netmask",
+      { "INTERNAL IP4 SUBNET (NETMASK)", "isakmp.cfg.attr.internal_ip4_subnet_netmask",
         FT_IPv4, BASE_NONE, NULL, 0x00,
         "The protected sub-networks that this edge-device protects (IP)", HFILL }},
     { &hf_isakmp_cfg_attr_supported_attributes,
@@ -6297,7 +6338,7 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_subnet_ip,
-      { "INTERNAL_IP6_SUBNET (IP)",     "isakmp.cfg.attr.internal_ip6_subnet_ip",
+      { "INTERNAL_IP6_SUBNET (IP)", "isakmp.cfg.attr.internal_ip6_subnet_ip",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_subnet_prefix,
@@ -6305,44 +6346,52 @@ proto_register_isakmp(void)
         FT_UINT8, BASE_DEC, NULL, 0x00,
         NULL, HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_link_interface,
-      { "INTERNAL_IP6_LINK (Link-Local Interface ID)",  "isakmp.cfg.attr.internal_ip6_link_interface",
+      { "INTERNAL_IP6_LINK (Link-Local Interface ID)", "isakmp.cfg.attr.internal_ip6_link_interface",
         FT_UINT64, BASE_DEC, NULL, 0x00,
         "The Interface ID used for link-local address (by the party that sent this attribute)", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_link_id,
-      { "INTERNAL_IP6_LINK (IKEv2 Link ID)",    "isakmp.cfg.attr.internal_ip6_link_id",
+      { "INTERNAL_IP6_LINK (IKEv2 Link ID)", "isakmp.cfg.attr.internal_ip6_link_id",
         FT_BYTES, BASE_NONE, NULL, 0x00,
         "The Link ID is selected by the VPN gateway and is treated as an opaque octet string by the client.", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_prefix_ip,
-      { "INTERNAL_IP6_PREFIX (IP)",     "isakmp.cfg.attr.internal_ip6_prefix_ip",
+      { "INTERNAL_IP6_PREFIX (IP)", "isakmp.cfg.attr.internal_ip6_prefix_ip",
         FT_IPv6, BASE_NONE, NULL, 0x00,
         "An IPv6 prefix assigned to the virtual link", HFILL }},
     { &hf_isakmp_cfg_attr_internal_ip6_prefix_length,
       { "INTERNAL_IP6_PREFIX (Length)", "isakmp.cfg.attr.internal_ip6_prefix_length",
         FT_UINT8, BASE_DEC, NULL, 0x00,
          "The length of the prefix in bits (usually 64)", HFILL }},
+    { &hf_isakmp_cfg_attr_p_cscf_ip4_address,
+      { "P_CSCF_IP4_ADDRESS (IP)", "isakmp.cfg.attr.p_cscf_ip4_address",
+        FT_IPv4, BASE_NONE, NULL, 0x00,
+        "An IPv4 address of the P-CSCF server", HFILL }},
+    { &hf_isakmp_cfg_attr_p_cscf_ip6_address,
+      { "P_CSCF_IP6_ADDRESS (IP)", "isakmp.cfg.attr.p_cscf_ip6_address",
+        FT_IPv6, BASE_NONE, NULL, 0x00,
+        "An IPv6 address of the P-CSCF server", HFILL }},
 
     { &hf_isakmp_cfg_attr_xauth_type,
-      { "XAUTH TYPE",   "isakmp.cfg.attr.xauth.type",
+      { "XAUTH TYPE", "isakmp.cfg.attr.xauth.type",
         FT_UINT16, BASE_RANGE_STRING | BASE_DEC, RVALS(cfgattr_xauth_type), 0x00,
         "The type of extended authentication requested", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_user_name,
-      { "XAUTH USER NAME",      "isakmp.cfg.attr.xauth.user_name",
+      { "XAUTH USER NAME", "isakmp.cfg.attr.xauth.user_name",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "The user name", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_user_password,
-      { "XAUTH USER PASSWORD",  "isakmp.cfg.attr.xauth.user_password",
+      { "XAUTH USER PASSWORD", "isakmp.cfg.attr.xauth.user_password",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "The user's password", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_passcode,
-      { "XAUTH PASSCODE",       "isakmp.cfg.attr.xauth.passcode",
+      { "XAUTH PASSCODE", "isakmp.cfg.attr.xauth.passcode",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "A token card's passcode", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_message,
-      { "XAUTH MESSAGE",        "isakmp.cfg.attr.xauth.message",
+      { "XAUTH MESSAGE", "isakmp.cfg.attr.xauth.message",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "A textual message from an edge device to an IPSec host", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_challenge,
-      { "XAUTH CHALLENGE",      "isakmp.cfg.attr.xauth.challenge",
+      { "XAUTH CHALLENGE", "isakmp.cfg.attr.xauth.challenge",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "A challenge string sent from the edge device to the IPSec host for it to include in its calculation of a password", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_domain,
@@ -6354,7 +6403,7 @@ proto_register_isakmp(void)
         FT_UINT16, BASE_DEC, VALS(cfgattr_xauth_status), 0x00,
         "A variable that is used to denote authentication success or failure", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_next_pin,
-      { "XAUTH TYPE",   "isakmp.cfg.attr.xauth.next_pin",
+      { "XAUTH TYPE", "isakmp.cfg.attr.xauth.next_pin",
         FT_STRING, BASE_NONE, NULL, 0x00,
         "A variable which is used when the edge device is requesting that the user choose a new pin number", HFILL }},
     { &hf_isakmp_cfg_attr_xauth_answer,
@@ -6366,7 +6415,7 @@ proto_register_isakmp(void)
         FT_STRING, BASE_NONE, NULL, 0x00,
         "Banner", HFILL }},
     { &hf_isakmp_cfg_attr_unity_def_domain,
-      { "UNITY DEF DOMAIN",     "isakmp.cfg.attr.unity.def_domain",
+      { "UNITY DEF DOMAIN", "isakmp.cfg.attr.unity.def_domain",
         FT_STRING, BASE_NONE, NULL, 0x00,
         NULL, HFILL }},
 

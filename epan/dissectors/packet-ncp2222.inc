@@ -1747,8 +1747,8 @@ ncp_hash_insert(conversation_t *conversation, guint8 nw_sequence,
        a reply to it. */
     request_key = wmem_new(wmem_file_scope(), ncp_req_hash_key);
     request_key->conversation = conversation;
-	/* Make sequence number unique */
-    request_key->nw_sequence_long = (0x10000 + ((pkt_num/255)<<16)) | nw_sequence;
+    /* Make sequence number unique */
+    request_key->nw_sequence_long = (0x10000 + ((pkt_num/16)<<16)) | nw_sequence;
 
     request_value = wmem_new0(wmem_file_scope(), ncp_req_hash_value);
     request_value->ncp_rec = ncp_rec;
@@ -1788,28 +1788,27 @@ static ncp_req_hash_value*
 ncp_hash_lookup(conversation_t *conversation, guint8 nw_sequence, guint32 pkt_num)
 {
     ncp_req_hash_key  request_key;
-	ncp_req_hash_value *temp_value;
+    ncp_req_hash_value *temp_value;
 
     request_key.conversation = conversation;
-	/* Find unique sequence number */
-    request_key.nw_sequence_long = (0x10000+((pkt_num/255)<<16)) | nw_sequence;
+    /* Find unique sequence number */
+    request_key.nw_sequence_long = (0x10000+((pkt_num/16)<<16)) | nw_sequence;
 
-	/* Since masking of sequence number utilizes the packet number as
-	 * part of it's algorythm it is possible for a packet to sit right
-	 * on the boundary and fail. (depending on number of packets in trace)
-	 * Loop through all the previous sequence numbers in the hash to see
-	 * if the original request packet can be found.
-	 */
-	temp_value = (ncp_req_hash_value *)g_hash_table_lookup(ncp_req_hash, &request_key);
-	while(!temp_value)
-	{
+    /* Since masking of sequence number utilizes the packet number as
+     * part of it's algorythm it is possible for a packet to sit right
+     * on the boundary and fail. (depending on number of packets in trace)
+     * Loop through all the previous sequence numbers in the hash to see
+     * if the original request packet can be found.
+     */
+    temp_value = (ncp_req_hash_value *)g_hash_table_lookup(ncp_req_hash, &request_key);
+    while(!temp_value)
+    {
        request_key.nw_sequence_long = request_key.nw_sequence_long-0x10000;
-	   if((request_key.nw_sequence_long & 0xffff0000) == 0){
-	        break;
-	   }  
+       if((request_key.nw_sequence_long & 0xffff0000) == 0){
+            break;
+       }
        temp_value = (ncp_req_hash_value *)g_hash_table_lookup(ncp_req_hash, &request_key);
-	}
-	
+    }
     return temp_value;
 }
 
@@ -2196,10 +2195,8 @@ process_struct_sub_ptvc_record(ptvcursor_t *ptvc, const ptvc_record *rec,
         ett = *rec->sub_ptvc_rec->ett;
         old_tree = ptvcursor_tree(ptvc);
         offset = ptvcursor_current_offset(ptvc);
-        item = proto_tree_add_text(old_tree, ptvcursor_tvbuff(ptvc),
-                                   offset, PROTO_LENGTH_UNTIL_END, "%s",
-                                   rec->sub_ptvc_rec->descr);
-        new_tree = proto_item_add_subtree(item, ett);
+        new_tree = proto_tree_add_subtree(old_tree, ptvcursor_tvbuff(ptvc), offset, PROTO_LENGTH_UNTIL_END,
+						ett, &item, rec->sub_ptvc_rec->descr);
         ptvcursor_set_tree(ptvc, new_tree);
     }
 
@@ -2665,52 +2662,52 @@ process_bitfield(proto_tree *ncp_tree, tvbuff_t *tvb, nds_val *values)
             switch(bvalue)
             {
             case 0x00000001:
-                proto_tree_add_item(flags_tree, values->bit1hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit1hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000002:
-                proto_tree_add_item(flags_tree, values->bit2hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit2hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000004:
-                proto_tree_add_item(flags_tree, values->bit3hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit3hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000008:
-                proto_tree_add_item(flags_tree, values->bit4hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit4hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000010:
-                proto_tree_add_item(flags_tree, values->bit5hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit5hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000020:
-                proto_tree_add_item(flags_tree, values->bit6hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit6hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000040:
-                proto_tree_add_item(flags_tree, values->bit7hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit7hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000080:
-                proto_tree_add_item(flags_tree, values->bit8hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit8hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000100:
-                proto_tree_add_item(flags_tree, values->bit9hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit9hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000200:
-                proto_tree_add_item(flags_tree, values->bit10hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit10hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000400:
-                proto_tree_add_item(flags_tree, values->bit11hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit11hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00000800:
-                proto_tree_add_item(flags_tree, values->bit12hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit12hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00001000:
-                proto_tree_add_item(flags_tree, values->bit13hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit13hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00002000:
-                proto_tree_add_item(flags_tree, values->bit14hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit14hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00004000:
-                proto_tree_add_item(flags_tree, values->bit15hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit15hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             case 0x00008000:
-                proto_tree_add_item(flags_tree, values->bit16hfname, tvb, values->voffset, values->vlength, TRUE);
+                proto_tree_add_item(flags_tree, values->bit16hfname, tvb, values->voffset, values->vlength, ENC_LITTLE_ENDIAN);
                 break;
             default:
                 break;
@@ -2749,6 +2746,8 @@ build_expert_data(proto_tree *ncp_tree, const char *hf_name, char *buffer,
             switch (PTREE_FINFO(tree_pointer)->hfinfo->type)
             {
             case 3:                /* uint8 */
+                g_snprintf(buffer, (gulong) buffer_size, "%02x", get_finfo_value_integer(PTREE_FINFO(tree_pointer)));
+                break;
             case 4:                /* uint16 */
                 g_snprintf(buffer, (gulong) buffer_size, "%u", get_finfo_value_integer(PTREE_FINFO(tree_pointer)));
                 break;
@@ -2946,8 +2945,8 @@ trap_for_expert_event(proto_tree *ncp_tree, packet_info *pinfo, const ncp_record
             char p_min_ver[3]="\0";
             char p_rev[3]="\0";
             char p_lang[3]="\0";
-			char p_serv_type[3]="\0";
-			char p_kernel[3]="\0";
+            char p_serv_type[3]="\0";
+            char p_kernel[3]="\0";
 
             /* Get Server name and version info */
             build_expert_data(ncp_tree, "ncp.server_name",
@@ -2973,7 +2972,7 @@ trap_for_expert_event(proto_tree *ncp_tree, packet_info *pinfo, const ncp_record
 
 
 static void
-print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val *vvalues)
+print_nds_values(proto_tree *vtree, packet_info* pinfo, tvbuff_t *tvb, guint32 syntax_type, nds_val *vvalues)
 {
     guint32         value1 = 0;
     guint32         value2 = 0;
@@ -3020,7 +3019,7 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
     for (icounter = 1 ; icounter <= number_of_values; icounter++ )
     {
         if (oldvoffset >= voffset) {
-            proto_tree_add_text(nvtree, tvb, 0, 0, "[ Invalid offset: %u ]", voffset);
+            proto_tree_add_expert_format(nvtree, pinfo, &ei_ncp_invalid_offset, tvb, 0, 0, "Invalid offset: %u", voffset);
             THROW(ReportedBoundsError);
         }
         oldvoffset = voffset;
@@ -3054,7 +3053,6 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             {
                 vvalues->vstring = "True";
             }
-            tvb_ensure_bytes_exist(tvb, voffset, 1);
             proto_tree_add_string(nvtree, hf_value_string, tvb, voffset,
                                   1, vvalues->vstring);
             voffset=voffset+1;
@@ -3068,8 +3066,7 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
                 break;
             }
             voffset += 4;
-            tvb_ensure_bytes_exist(tvb, voffset, value1);
-            proto_tree_add_bytes(nvtree, hf_value_bytes, tvb, voffset, value1, tvb_get_ptr(tvb, voffset, value1));
+            proto_tree_add_item(nvtree, hf_value_bytes, tvb, voffset, value1, ENC_NA);
             voffset += value1;
             voffset += (value1%2);
             break;
@@ -3093,8 +3090,7 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
                     break;
                 }
                 voffset += 4;
-                tvb_ensure_bytes_exist(tvb, voffset, value1);
-                proto_tree_add_bytes(nvtree, hf_value_bytes, tvb, voffset, value1, tvb_get_ptr(tvb, voffset, value1));
+                proto_tree_add_item(nvtree, hf_value_bytes, tvb, voffset, value1, ENC_NA);
                 voffset += value1;
                 voffset += (value1%2);
             }
@@ -3106,7 +3102,7 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             {
                 break;
             }
-            proto_tree_add_text(nvtree, tvb, voffset, 4, "No value, Open stream file for data.");
+            proto_tree_add_uint_format(nvtree, hf_nds_uint32value, tvb, voffset, 4, value1, "No value, Open stream file for data.");
             voffset += 4;
             voffset += value1;
             voffset += (value1%2);
@@ -3117,7 +3113,6 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             value1 = tvb_get_letohl(tvb, voffset); /* length of field */
             voffset = voffset+4;
             value2 = tvb_get_letohl(tvb, voffset); /* Value */
-            tvb_ensure_bytes_exist(tvb, voffset, value1);
             if (strcmp(vvalues->vstring, "zendmSearchType")==0) {
                 proto_tree_add_uint_format(nvtree, hf_nds_uint32value, tvb, voffset,
                                            value1, value2,
@@ -3145,7 +3140,6 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             voffset = voffset + 4;
             value2 = tvb_get_letohl(tvb, voffset); /* type of Protocol */
             valuestr = val_to_str_const(value2, nds_protocol_type, "(Undefined Protocol)");
-            tvb_ensure_bytes_exist(tvb, voffset, value1);
             proto_tree_add_uint_format(nvtree, hf_nds_uint32value, tvb, voffset,
                                        value1, value2, valuestr, value2);
             voffset = voffset+4;
@@ -3154,27 +3148,27 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             switch (value2)
             {
             case NDS_PTYPE_IPX:
-                proto_tree_add_item(nvtree, hf_nds_net, tvb, voffset, 4, FALSE);
-                proto_tree_add_item(nvtree, hf_nds_node, tvb, voffset+4, 6, FALSE);
-                proto_tree_add_item(nvtree, hf_nds_socket, tvb, voffset+10, 2, FALSE);
+                proto_tree_add_item(nvtree, hf_nds_net, tvb, voffset, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(nvtree, hf_nds_node, tvb, voffset+4, 6, ENC_NA);
+                proto_tree_add_item(nvtree, hf_nds_socket, tvb, voffset+10, 2, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_IP:
                 if (value3 > 4) {
-                    proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, FALSE);
+                    proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
                     voffset += 2;
                 }
-                proto_tree_add_item(nvtree, hf_add_ref_ip, tvb, voffset, 4, FALSE);
+                proto_tree_add_item(nvtree, hf_add_ref_ip, tvb, voffset, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_UDP:
                 if (value3 > 4) {
-                    proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, FALSE);
+                    proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
                     voffset += 2;
                 }
-                proto_tree_add_item(nvtree, hf_add_ref_udp, tvb, voffset, 4, FALSE);
+                proto_tree_add_item(nvtree, hf_add_ref_udp, tvb, voffset, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_TCP:
-                proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, FALSE);
-                proto_tree_add_item(nvtree, hf_add_ref_tcp, tvb, voffset+2, 4, FALSE);
+                proto_tree_add_item(nvtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(nvtree, hf_add_ref_tcp, tvb, voffset+2, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_URL:
             case NDS_PTYPE_DNS:
@@ -3239,7 +3233,7 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
             {
                 /* If this request flag is set then this is a server. Server structures
                  * include the RootID as part of the replica data. */
-                proto_tree_add_item(nvtree, hf_nds_partition_root_id, tvb, voffset, 4, FALSE);
+                proto_tree_add_item(nvtree, hf_nds_partition_root_id, tvb, voffset, 4, ENC_BIG_ENDIAN);
                 voffset += 4;
             }
             number_of_items = tvb_get_letohl(tvb, voffset);  /* Number of Addresses */
@@ -3266,21 +3260,21 @@ print_nds_values(proto_tree *vtree, tvbuff_t *tvb, guint32 syntax_type, nds_val 
                 switch (value4)
                 {
                 case NDS_PTYPE_IPX:
-                    proto_tree_add_item(adtree, hf_nds_net, tvb, voffset, 4, FALSE);
-                    proto_tree_add_item(adtree, hf_nds_node, tvb, voffset+4, 6, FALSE);
-                    proto_tree_add_item(adtree, hf_nds_socket, tvb, voffset+10, 2, FALSE);
+                    proto_tree_add_item(adtree, hf_nds_net, tvb, voffset, 4, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(adtree, hf_nds_node, tvb, voffset+4, 6, ENC_NA);
+                    proto_tree_add_item(adtree, hf_nds_socket, tvb, voffset+10, 2, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_IP:
-                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, FALSE);
-                    proto_tree_add_item(adtree, hf_add_ref_ip, tvb, voffset+2, 4, FALSE);
+                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(adtree, hf_add_ref_ip, tvb, voffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_UDP:
-                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, FALSE);
-                    proto_tree_add_item(adtree, hf_add_ref_udp, tvb, voffset+2, 4, FALSE);
+                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(adtree, hf_add_ref_udp, tvb, voffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_TCP:
-                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, FALSE);
-                    proto_tree_add_item(adtree, hf_add_ref_tcp, tvb, voffset+2, 4, FALSE);
+                    proto_tree_add_item(adtree, hf_nds_port, tvb, voffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(adtree, hf_add_ref_tcp, tvb, voffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_URL:
                 case NDS_PTYPE_DNS:
@@ -3571,23 +3565,20 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
     guint32         number_of_referrals;
     guint32         r;
     guint32         i;
-    guint16         replica_num;
-    guint16         event_num;
     proto_tree      *nestree;
     proto_item      *nesitem;
     proto_tree      *sub1tree;
     proto_item      *sub1item;
     proto_tree      *sub2tree;
-    proto_item      *sub2item;
     const char      *vstring="";
     nstime_t        ns;
 
     switch (vtype)
     {
     case 0: /* No Specifier Type */
-        value1 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+        /* ES Type */
         proto_tree_add_item(estree, hf_es_value, tvb, ioffset,
-                            4, value1);
+                            4, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 4;
         break;
     case 1: /* Unicode String */
@@ -3617,9 +3608,8 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         switch (value1)
         {
         case 0: /* No Specifier Type */
-            value2 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
-            proto_tree_add_item(nestree, hf_es_value, tvb, ioffset,
-                                4, value2);
+            /* ES Type */
+            proto_tree_add_item(nestree, hf_es_value, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         case 1: /* Unicode String */
@@ -3646,7 +3636,7 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         case 4: /* Tuned */
             value2 = tvb_get_letohl(tvb, ioffset);   /* Count */
             proto_tree_add_item(nestree, hf_es_rdn_count, tvb, ioffset,
-                                4, value2);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             for (r = 1 ; r <= value2; r++ )
             {
@@ -3656,13 +3646,11 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
                                            4, &ns, "Timestamp: %s",
                                            abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                 ioffset = ioffset + 4;
-                replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                 proto_tree_add_item(nestree, hf_nds_replica_num, tvb, ioffset,
-                                    2, replica_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
-                event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                 proto_tree_add_item(nestree, hf_nds_event_num, tvb, ioffset,
-                                    2, event_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
             }
             value4 = tvb_get_letohl(tvb, ioffset);   /* Delimiter Set */
@@ -3684,10 +3672,10 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         case 6: /* ID32 */
         case 7: /* Count */
         default:
-            value1 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+            /* ES Type */
             /* XXX: nestree rather than estree ?? */
             proto_tree_add_item(estree, hf_es_value, tvb, ioffset,
-                                4, value1);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         }
@@ -3700,9 +3688,9 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         switch (value1)
         {
         case 0: /* No Specifier Type */
-            value2 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+            /* ES Type */
             proto_tree_add_item(nestree, hf_es_value, tvb, ioffset,
-                                4, value2);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         case 1: /* Unicode String */
@@ -3728,7 +3716,7 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
             break;
         case 4: /* Tuned */
             value2 = tvb_get_letohl(tvb, ioffset);   /* Count */
-            proto_tree_add_item(nestree, hf_es_rdn_count, tvb, ioffset,
+            proto_tree_add_uint(nestree, hf_es_rdn_count, tvb, ioffset,
                                 4, value2);
             ioffset = ioffset + 4;
             for (r = 1 ; r <= value2; r++ )
@@ -3739,13 +3727,11 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
                                            4, &ns, "Timestamp: %s",
                                            abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                 ioffset = ioffset + 4;
-                replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                 proto_tree_add_item(nestree, hf_nds_replica_num, tvb, ioffset,
-                                    2, replica_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
-                event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                 proto_tree_add_item(nestree, hf_nds_event_num, tvb, ioffset,
-                                    2, event_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
             }
             value4 = tvb_get_letohl(tvb, ioffset);   /* Delimiter Set */
@@ -3767,10 +3753,10 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         case 6: /* ID32 */
         case 7: /* Count */
         default:
-            value1 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+            /* ES Type */
             /* XXX: nestree rather than estree ?? */
             proto_tree_add_item(estree, hf_es_value, tvb, ioffset,
-                                4, value1);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         }
@@ -3802,21 +3788,21 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
                 switch (value2)
                 {
                 case NDS_PTYPE_IPX:
-                    proto_tree_add_item(sub1tree, hf_nds_net, tvb, ioffset, 4, FALSE);
-                    proto_tree_add_item(sub1tree, hf_nds_node, tvb, ioffset+4, 6, FALSE);
-                    proto_tree_add_item(sub1tree, hf_nds_socket, tvb, ioffset+10, 2, FALSE);
+                    proto_tree_add_item(sub1tree, hf_nds_net, tvb, ioffset, 4, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(sub1tree, hf_nds_node, tvb, ioffset+4, 6, ENC_NA);
+                    proto_tree_add_item(sub1tree, hf_nds_socket, tvb, ioffset+10, 2, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_IP:
-                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(sub1tree, hf_add_ref_ip, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(sub1tree, hf_add_ref_ip, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_UDP:
-                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(sub1tree, hf_add_ref_udp, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(sub1tree, hf_add_ref_udp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_TCP:
-                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(sub1tree, hf_add_ref_tcp, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(sub1tree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(sub1tree, hf_add_ref_tcp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_URL:
                 case NDS_PTYPE_DNS:
@@ -3841,9 +3827,9 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         switch (value1)
         {
         case 0: /* No Specifier Type */
-            value2 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+            /* ES Type */
             proto_tree_add_item(nestree, hf_es_value, tvb, ioffset,
-                                4, value2);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         case 1: /* Unicode String */
@@ -3869,7 +3855,7 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
             break;
         case 4: /* Tuned */
             value2 = tvb_get_letohl(tvb, ioffset);   /* Count */
-            proto_tree_add_item(nestree, hf_es_rdn_count, tvb, ioffset,
+            proto_tree_add_uint(nestree, hf_es_rdn_count, tvb, ioffset,
                                 4, value2);
             ioffset = ioffset + 4;
             for (r = 1 ; r <= value2; r++ )
@@ -3880,13 +3866,11 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
                                            4, &ns, "Timestamp: %s",
                                            abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                 ioffset = ioffset + 4;
-                replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                 proto_tree_add_item(nestree, hf_nds_replica_num, tvb, ioffset,
-                                    2, replica_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
-                event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                 proto_tree_add_item(nestree, hf_nds_event_num, tvb, ioffset,
-                                    2, event_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
             }
             value4 = tvb_get_letohl(tvb, ioffset);   /* Delimiter Set */
@@ -3908,10 +3892,10 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         case 6: /* ID32 */
         case 7: /* Count */
         default:
-            value1 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+            /* ES Type */
             /* XXX: nestree rather than estree ?? */
             proto_tree_add_item(estree, hf_es_value, tvb, ioffset,
-                                4, value1);
+                                4, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 4;
             break;
         }
@@ -3924,8 +3908,7 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
         ioffset = ioffset + 4;
         for (r = 1 ; r <= value1; r++ )
         {
-            sub2item = proto_tree_add_text(sub1tree, tvb, ioffset, 0, "Item %u", r);
-            sub2tree = proto_item_add_subtree(sub2item, ett_nds);
+            sub2tree = proto_tree_add_subtree_format(sub1tree, tvb, ioffset, 10, ett_nds, NULL, "Item %u", r);
 
             ns.secs = tvb_get_letohl(tvb, ioffset);   /* Seconds */
             ns.nsecs = 0;
@@ -3933,13 +3916,11 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
                                        4, &ns, "Timestamp: %s",
                                        abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
             ioffset = ioffset + 4;
-            replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
             proto_tree_add_item(sub2tree, hf_nds_replica_num, tvb, ioffset,
-                                2, replica_num);
+                                2, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 2;
-            event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
             proto_tree_add_item(sub2tree, hf_nds_event_num, tvb, ioffset,
-                                2, event_num);
+                                2, ENC_LITTLE_ENDIAN);
             ioffset = ioffset + 2;
         }
         value3 = tvb_get_letohl(tvb, ioffset);   /* Delimiter Set */
@@ -3961,9 +3942,9 @@ print_es_type(proto_tree *estree, tvbuff_t *tvb, nds_val *values, guint32 vtype,
     case 6: /* ID32 */
     case 7: /* Count */
     default:
-        value1 = tvb_get_letohl(tvb, ioffset);   /* ES Type */
+        /* ES Type */
         proto_tree_add_item(estree, hf_es_value, tvb, ioffset,
-                            4, value1);
+                            4, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 4;
         break;
     }
@@ -4180,19 +4161,18 @@ static void
 process_search_subexpression(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, nds_val *values)
 {
     proto_tree  *it_subtree, *it_subtree1;
-    proto_item  *it_subitem, *it_subitem1;
+    proto_item  *it_subitem;
     guint32     i, ioffset, number_of_items;
 
     ioffset = values->voffset;
     if (values->vvalue != NDS_SEARCH_NOT) {
         number_of_items = tvb_get_letohl(tvb, ioffset);
-        it_subitem = proto_tree_add_item(it_tree, hf_this_count, tvb, ioffset, 4, TRUE);
+        it_subitem = proto_tree_add_item(it_tree, hf_this_count, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
         it_subtree = proto_item_add_subtree(it_subitem, ett_nds);
         ioffset += 4;
         for (i = 0; i < number_of_items; i++)
         {
-            it_subitem1 = proto_tree_add_text(it_subtree, tvb, ioffset, -1, "Item #: %u", i+1);
-            it_subtree1 = proto_item_add_subtree(it_subitem1, ett_nds);
+            it_subtree1 = proto_tree_add_subtree_format(it_subtree, tvb, ioffset, -1, ett_nds, NULL, "Item #: %u", i+1);
 
             values->voffset = ioffset;
             process_set_filter(it_subtree1, tvb, pinfo, values);
@@ -4218,12 +4198,12 @@ process_search_match(proto_tree *it_tree, tvbuff_t *tvb, nds_val *values)
 
     values->vvalue = tvb_get_letohl(tvb, ioffset);
     ioffset += 4;
-    proto_tree_add_item(it_tree, hf_nds_oid, tvb, ioffset, values->vvalue, TRUE);
+    proto_tree_add_item(it_tree, hf_nds_oid, tvb, ioffset, values->vvalue, ENC_NA);
     ioffset += values->vvalue;
 
     ioffset += align_4(tvb, ioffset);
 
-    proto_tree_add_item(it_tree, hf_iter_ans, tvb, ioffset, 4, TRUE);
+    proto_tree_add_item(it_tree, hf_iter_ans, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
     ioffset += 4;
 
     ioffset += align_4(tvb, ioffset);
@@ -4307,7 +4287,6 @@ static void
 process_entry_info(proto_tree *it_tree, tvbuff_t *tvb, nds_val *values)
 {
     guint32     iter_flags, ioffset = values->voffset;
-    guint16     replica_num, event_num;
     nstime_t    ns;
 
     values->vstring = NULL;
@@ -4446,7 +4425,7 @@ process_entry_info(proto_tree *it_tree, tvbuff_t *tvb, nds_val *values)
         ioffset = ioffset+4;
     }
     if (iter_flags & DSI_SUBORDINATE_COUNT) { /* Subordinate Count */
-        proto_tree_add_item(it_tree, hf_sub_count, tvb, ioffset, 4, TRUE);
+        proto_tree_add_item(it_tree, hf_sub_count, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
         ioffset += 4;
     }
     if (iter_flags & DSI_MODIFICATION_TIME) { /* Modification Time */
@@ -4464,13 +4443,11 @@ process_entry_info(proto_tree *it_tree, tvbuff_t *tvb, nds_val *values)
                 4, &ns, "Modification Timestamp: %s",
                 abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
         ioffset = ioffset + 4;
-        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
         proto_tree_add_item(it_tree, hf_nds_replica_num, tvb, ioffset,
-                2, replica_num);
+                2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
-        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
         proto_tree_add_item(it_tree, hf_nds_event_num, tvb, ioffset,
-                2, event_num);
+                2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
     }
     if (iter_flags & DSI_CREATION_TIMESTAMP) { /* Creation Timestamp */
@@ -4480,13 +4457,11 @@ process_entry_info(proto_tree *it_tree, tvbuff_t *tvb, nds_val *values)
                 4, &ns, "Creation Timestamp: %s",
                 abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
         ioffset = ioffset + 4;
-        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
         proto_tree_add_item(it_tree, hf_nds_replica_num, tvb, ioffset,
-                2, replica_num);
+                2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
-        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
         proto_tree_add_item(it_tree, hf_nds_event_num, tvb, ioffset,
-                2, event_num);
+                2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
     }
     if (iter_flags & DSI_PARTITION_ROOT_ID) { /* Partition Root ID */
@@ -4678,7 +4653,7 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
     const char  *error_string, *verb_string;
     nds_val     values;
     proto_tree  *it_subtree, *it_subtree1;
-    proto_item  *it_subitem, *it_subitem1;
+    proto_item  *it_subitem;
     proto_item  *expert_item;
 
     values.vtype = 0;
@@ -4710,11 +4685,11 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
             case IT_COPY:
                 break;
             case IT_COUNT:
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
-                proto_tree_add_item(it_subtree, hf_max_entries, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_max_entries, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
-                proto_tree_add_item(it_subtree, hf_move_position, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_move_position, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_CREATE:
@@ -4723,35 +4698,35 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
             case IT_DONE:
                 break;
             case IT_FIRST:
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_GETPOSITION:
             case IT_ISPOSITIONABLE:
                 break;
             case IT_LAST:
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_NEXT:
             case IT_PREV:
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
-                proto_tree_add_item(it_subtree, hf_num_to_get, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_num_to_get, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_POSITION:
-                proto_tree_add_item(it_subtree, hf_iter_position, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_position, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_POSITION_IT:
-                proto_tree_add_item(it_subtree, hf_iter_other, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_other, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_SETINDEX:
-                proto_tree_add_item(it_subtree, hf_nds_number_of_items, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_nds_number_of_items, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 number_of_items = tvb_get_letohl(tvb, ioffset);
                 ioffset += 4;
                 for (i=0; i < number_of_items; i++) {
@@ -4761,7 +4736,7 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
                     values.vstring = val_to_str_const(values.vvalue, nds_tags, "No Tags Set");
                     proto_tree_add_string(it_subtree, hf_nds_tag_string, tvb, ioffset, 4, values.vstring);
 #endif
-                    proto_tree_add_item(it_subtree, hf_iter_index, tvb, ioffset, 4, TRUE);
+                    proto_tree_add_item(it_subtree, hf_iter_index, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 4;
 
                     /* start of DCWPutAttribute */
@@ -4795,13 +4770,13 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
                 ioffset += align_4(tvb, ioffset);
                 break;
             case IT_SKIP:
-                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_timelimit, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
-                proto_tree_add_item(it_subtree, hf_num_to_skip, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_num_to_skip, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_TYPEDOWN:
-                proto_tree_add_item(it_subtree, hf_num_to_get, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_num_to_get, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 number_to_get = tvb_get_letohl(tvb, ioffset);
                 ioffset += 4;
                 if (number_to_get == 0) {
@@ -4844,21 +4819,21 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
             case IT_ATEOF:
             case IT_ATLAST:
             case IT_ATBOF:
-                proto_tree_add_item(it_subtree, hf_iter_ans, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_ans, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_CLEAR:
                 break;
             case IT_COPY:
-                proto_tree_add_item(it_subtree, hf_iter_copy, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_copy, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_COUNT:
-                proto_tree_add_item(it_subtree, hf_this_count, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_this_count, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_CREATE:
-                proto_tree_add_item(it_subtree, hf_nds_iterator, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_nds_iterator, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_CURRENT:
@@ -4870,15 +4845,14 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
                 values.vstring = val_to_str_const(values.vvalue, nds_info_type, "No Info Type Set");
                 proto_tree_add_string(it_subtree, hf_nds_info_type, tvb, ioffset, 4, values.vstring);
                 ioffset = ioffset + 4;
-                proto_tree_add_item(it_subtree, hf_data_size, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_data_size, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 number_of_items = tvb_get_letohl(tvb, ioffset);
-                proto_tree_add_item(it_subtree, hf_this_count, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_this_count, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 for (i = 0; i < number_of_items; i++)
                 {
-                    it_subitem1 = proto_tree_add_text(it_subtree, tvb, ioffset, -1, "Item #: %u", i+1);
-                    it_subtree1 = proto_item_add_subtree(it_subitem1, ett_nds);
+                    it_subtree1 = proto_tree_add_subtree_format(it_subtree, tvb, ioffset, -1, ett_nds, NULL, "Item #: %u", i+1);
 
                     ioffset += align_4(tvb, ioffset);
 
@@ -4904,11 +4878,11 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
             case IT_DONE:
                 break;
             case IT_GETPOSITION:
-                proto_tree_add_item(it_subtree, hf_iter_position, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_position, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_ISPOSITIONABLE:
-                proto_tree_add_item(it_subtree, hf_positionable, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_positionable, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_POSITION:
@@ -4917,11 +4891,11 @@ dissect_nds_iterator(proto_tree *it_tree, tvbuff_t *tvb, packet_info *pinfo, gui
             case IT_TYPEDOWN:
                 break;
             case IT_SETINDEX:
-                proto_tree_add_item(it_subtree, hf_iter_index, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_iter_index, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             case IT_SKIP:
-                proto_tree_add_item(it_subtree, hf_num_skipped, tvb, ioffset, 4, TRUE);
+                proto_tree_add_item(it_subtree, hf_num_skipped, tvb, ioffset, 4, ENC_LITTLE_ENDIAN);
                 ioffset += 4;
                 break;
             default:
@@ -4966,8 +4940,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
     guint32         number_of_referrals = 0;
     proto_tree      *estree;
     proto_item      *esitem;
-    guint16         replica_num = 0;
-    guint16         event_num = 0;
     guint32         bvalue=0;
     nds_val         temp_values;
     proto_tree      *sub1tree;
@@ -5042,7 +5014,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                 ioffset += align_4(tvb, ioffset);
                 values->voffset = ioffset;
 
-                print_nds_values(ntree, tvb, value1, values);
+                print_nds_values(ntree, pinfo, tvb, value1, values);
                 ioffset = values->voffset;
             }
             break;
@@ -5072,7 +5044,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                 {
                     ioffset += 4;   /* Length = 4 */
                     value4 = tvb_get_letohl(tvb, ioffset);
-                    tvb_ensure_bytes_exist(tvb, ioffset, values->vlength);
                     proto_tree_add_uint(ntree, hf_nds_privileges, tvb, ioffset,
                                         values->vlength, value4);
 
@@ -5151,13 +5122,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                4, &ns, "Timestamp: %s",
                                                abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                     ioffset = ioffset + 4;
-                    replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                     proto_tree_add_item(atree, hf_nds_replica_num, tvb, ioffset,
-                                        2, replica_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
-                    event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                     proto_tree_add_item(atree, hf_nds_event_num, tvb, ioffset,
-                                        2, event_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
                     value5 = tvb_get_letohl(tvb, ioffset); /* length of field */
                     if(value5 > tvb_captured_length_remaining(tvb, ioffset))
@@ -5165,8 +5134,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                         break;
                     }
                     ioffset += 4;
-                    tvb_ensure_bytes_exist(tvb, ioffset, value5);
-                    proto_tree_add_bytes(atree, hf_value_bytes, tvb, ioffset, value5, tvb_get_ptr(tvb, ioffset, value5));
+                    proto_tree_add_item(atree, hf_value_bytes, tvb, ioffset, value5, ENC_NA);
                     ioffset += value5;
                     ioffset += (value5%2);
                 }
@@ -5240,17 +5208,14 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                4, &ns, "Creation Time: %s",
                                                abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                     ioffset = ioffset + 4;
-                    replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                     proto_tree_add_item(ntree, hf_nds_replica_num, tvb, ioffset,
-                                        2, replica_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
-                    event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                     proto_tree_add_item(ntree, hf_nds_event_num, tvb, ioffset,
-                                        2, event_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
-                    value1 = tvb_get_letohl(tvb, ioffset);
-                    proto_tree_add_uint(ntree, hf_nds_value_len, tvb, ioffset,
-                                        4, value1);
+                    proto_tree_add_item(ntree, hf_nds_value_len, tvb, ioffset,
+                                        4, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 4;
                 }
             }
@@ -5265,7 +5230,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         for (i = 1 ; i <= values->vvalue; i++ )
         {
             if (oldioffset >= ioffset) {
-                proto_tree_add_text(ntree, tvb, 0, 0, "[ Invalid offset: %u ]", ioffset);
+                proto_tree_add_expert_format(ntree, pinfo, &ei_ncp_invalid_offset, tvb, 0, 0, "Invalid offset: %u", ioffset);
                 THROW(ReportedBoundsError);
             }
             oldioffset = ioffset;
@@ -5288,7 +5253,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
             ioffset = ioffset + value1;
             ioffset += align_4(tvb, ioffset);
             values->voffset = ioffset;
-            print_nds_values(ntree, tvb, 9, values);
+            print_nds_values(ntree, pinfo, tvb, 9, values);
             ioffset = values->voffset;
         }
         break;
@@ -5379,13 +5344,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                    4, &ns, "Modification Timestamp: %s",
                                                    abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                         ioffset = ioffset + 4;
-                        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                         proto_tree_add_item(ntree, hf_nds_replica_num, tvb, ioffset,
-                                            2, replica_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
-                        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                         proto_tree_add_item(ntree, hf_nds_event_num, tvb, ioffset,
-                                            2, event_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
                         break;
                     case 0x00000010:                /*p3values.bit5 = "Purge Time"*/
@@ -5449,7 +5412,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
             ioffset += align_4(tvb, ioffset);
             value1 = tvb_get_letohl(tvb, ioffset);
             valuestr = val_to_str_const(value1, nds_kind_of_changes, "(Kind Change Not Found)");
-            tvb_ensure_bytes_exist(tvb, ioffset, values->vlength);
             proto_tree_add_uint_format(ntree, hf_nds_uint32value, tvb, ioffset,
                                        values->vlength, value1, valuestr, value1);
             ioffset = ioffset+4;
@@ -5464,7 +5426,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
             {
                 values->voffset = ioffset;
                 /* XX: Is values.vstring set properly at this point ?? */
-                print_nds_values(ntree, tvb, 9, values);
+                print_nds_values(ntree, pinfo, tvb, 9, values);
                 ioffset = values->voffset;
             }
         }
@@ -5475,7 +5437,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         {
             value1 = tvb_get_letohl(tvb, ioffset);
             valuestr = val_to_str_const(value1, nds_protocol_type, "(Undefined Protocol)");
-            tvb_ensure_bytes_exist(tvb, ioffset, values->vlength);
             proto_tree_add_uint_format(ntree, hf_nds_uint32value, tvb, ioffset,
                                        values->vlength, value1, valuestr, value1);
             ioffset = ioffset+4;
@@ -5501,7 +5462,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
             {
                 value2 = tvb_get_letohl(tvb, ioffset);
                 valuestr = val_to_str_const(value2, nds_protocol_type, "(Undefined Protocol)");
-                tvb_ensure_bytes_exist(tvb, ioffset, values->vlength);
                 proto_tree_add_uint_format(atree, hf_nds_uint32value, tvb, ioffset,
                                            values->vlength, value2, valuestr, value2);
                 ioffset = ioffset+4;
@@ -5510,21 +5470,21 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                 switch (value2)
                 {
                 case NDS_PTYPE_IPX:
-                    proto_tree_add_item(atree, hf_nds_net, tvb, ioffset, 4, FALSE);
-                    proto_tree_add_item(atree, hf_nds_node, tvb, ioffset+4, 6, FALSE);
-                    proto_tree_add_item(atree, hf_nds_socket, tvb, ioffset+10, 2, FALSE);
+                    proto_tree_add_item(atree, hf_nds_net, tvb, ioffset, 4, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(atree, hf_nds_node, tvb, ioffset+4, 6, ENC_NA);
+                    proto_tree_add_item(atree, hf_nds_socket, tvb, ioffset+10, 2, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_IP:
-                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(atree, hf_add_ref_ip, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(atree, hf_add_ref_ip, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_UDP:
-                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(atree, hf_add_ref_udp, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(atree, hf_add_ref_udp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_TCP:
-                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                    proto_tree_add_item(atree, hf_add_ref_tcp, tvb, ioffset+2, 4, FALSE);
+                    proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                    proto_tree_add_item(atree, hf_add_ref_tcp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                     break;
                 case NDS_PTYPE_URL:
                 case NDS_PTYPE_DNS:
@@ -5553,7 +5513,6 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
 
             value2 = tvb_get_letohl(tvb, ioffset);
             valuestr = val_to_str_const(value2, nds_protocol_type, "(Undefined Protocol)");
-            tvb_ensure_bytes_exist(tvb, ioffset, values->vlength);
             proto_tree_add_uint_format(atree, hf_nds_uint32value, tvb, ioffset,
                                        values->vlength, value2, valuestr, value2);
             ioffset = ioffset+4;
@@ -5563,21 +5522,21 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
             switch (value2)
             {
             case NDS_PTYPE_IPX:
-                proto_tree_add_item(atree, hf_nds_net, tvb, ioffset, 4, FALSE);
-                proto_tree_add_item(atree, hf_nds_node, tvb, ioffset+4, 6, FALSE);
-                proto_tree_add_item(atree, hf_nds_socket, tvb, ioffset+10, 2, FALSE);
+                proto_tree_add_item(atree, hf_nds_net, tvb, ioffset, 4, ENC_BIG_ENDIAN);
+                proto_tree_add_item(atree, hf_nds_node, tvb, ioffset+4, 6, ENC_NA);
+                proto_tree_add_item(atree, hf_nds_socket, tvb, ioffset+10, 2, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_IP:
-                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                proto_tree_add_item(atree, hf_add_ref_ip, tvb, ioffset+2, 4, FALSE);
+                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(atree, hf_add_ref_ip, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_UDP:
-                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                proto_tree_add_item(atree, hf_add_ref_udp, tvb, ioffset+2, 4, FALSE);
+                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(atree, hf_add_ref_udp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_TCP:
-                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, FALSE);
-                proto_tree_add_item(atree, hf_add_ref_tcp, tvb, ioffset+2, 4, FALSE);
+                proto_tree_add_item(atree, hf_nds_port, tvb, ioffset, 2, ENC_BIG_ENDIAN);
+                proto_tree_add_item(atree, hf_add_ref_tcp, tvb, ioffset+2, 4, ENC_BIG_ENDIAN);
                 break;
             case NDS_PTYPE_URL:
             case NDS_PTYPE_DNS:
@@ -5640,13 +5599,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         break;
 
     case MVTYPE_PRINT_TIMESTAMP:  /* Print Timestamp */
-        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
         proto_tree_add_item(ncp_tree, hf_nds_replica_num, tvb, ioffset,
-                            2, replica_num);
+                            2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
-        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
         proto_tree_add_item(ncp_tree, hf_nds_event_num, tvb, ioffset,
-                            2, event_num);
+                            2, ENC_LITTLE_ENDIAN);
         ioffset = ioffset + 2;
         /* fall through */
 
@@ -5656,7 +5613,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
          * over 256 referrals.
          */
         if (number_of_referrals > 256) {
-            proto_tree_add_text(ntree, tvb, 0, 0, "[ Bad referal at offset: %u ]", ioffset);
+            proto_tree_add_expert_format(ntree, pinfo, &ei_ncp_invalid_offset, tvb, 0, 0, "Bad referal at offset: %u", ioffset);
             THROW(ReportedBoundsError);
             break;
         }
@@ -5822,13 +5779,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                    4, &ns, "Modification Timestamp: %s",
                                                    abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                         ioffset = ioffset + 4;
-                        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                         proto_tree_add_item(ntree, hf_nds_replica_num, tvb, ioffset,
-                                            2, replica_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
-                        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                         proto_tree_add_item(ntree, hf_nds_event_num, tvb, ioffset,
-                                            2, event_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
                         break;
                     case 0x0000040:                 /* Creation Timestamp */
@@ -5838,13 +5793,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                    4, &ns, "Creation Timestamp: %s",
                                                    abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                         ioffset = ioffset + 4;
-                        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                         proto_tree_add_item(ntree, hf_nds_replica_num, tvb, ioffset,
-                                            2, replica_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
-                        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                         proto_tree_add_item(ntree, hf_nds_event_num, tvb, ioffset,
-                                            2, event_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
                         break;
                     case 0x00000080:                /* Partition Root ID */
@@ -6022,8 +5975,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                         break;
                     }
                     ioffset += 4;
-                    tvb_ensure_bytes_exist(tvb, ioffset, value1);
-                    proto_tree_add_bytes(sub1tree, hf_nds_asn1, tvb, ioffset, value1, tvb_get_ptr(tvb, ioffset, value1));
+                    proto_tree_add_item(sub1tree, hf_nds_asn1, tvb, ioffset, value1, ENC_NA);
                     ioffset += value1;
                     ioffset += (value1%2);
                 }
@@ -6191,13 +6143,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                4, &ns, "Creation Timestamp: %s",
                                                abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                     ioffset = ioffset + 4;
-                    replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                     proto_tree_add_item(sub1tree, hf_nds_replica_num, tvb, ioffset,
-                                        2, replica_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
-                    event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                     proto_tree_add_item(sub1tree, hf_nds_event_num, tvb, ioffset,
-                                        2, event_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
                     ns.secs = tvb_get_letohl(tvb, ioffset);   /* Seconds */
                     ns.nsecs = 0;
@@ -6205,13 +6155,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                4, &ns, "Modification Timestamp: %s",
                                                abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                     ioffset = ioffset + 4;
-                    replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                     proto_tree_add_item(sub1tree, hf_nds_replica_num, tvb, ioffset,
-                                        2, replica_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
-                    event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                     proto_tree_add_item(sub1tree, hf_nds_event_num, tvb, ioffset,
-                                        2, event_num);
+                                        2, ENC_LITTLE_ENDIAN);
                     ioffset = ioffset + 2;
                     /* Class Definition */
                     value1 = tvb_get_letohl(tvb, ioffset);  /* Super Classes */
@@ -6400,7 +6348,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         switch (values->vflags) {
 
         case 8:  /* Tuned Name */
-            proto_tree_add_item(ntree, hf_nds_tune_mark, tvb, ioffset, 2, FALSE);
+            proto_tree_add_item(ntree, hf_nds_tune_mark, tvb, ioffset, 2, ENC_BIG_ENDIAN);
             ioffset += 2;
             value1 = tvb_get_letohs(tvb, ioffset);
             valuestr = val_to_str_const(value1, nds_tuned_tags, "(Undefined Tuned Name Tag)");
@@ -6422,13 +6370,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                            4, &ns, "Creation Timestamp: %s",
                                            abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                 ioffset += 4;
-                replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                 proto_tree_add_item(ntree, hf_nds_replica_num, tvb, ioffset,
-                                    2, replica_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
-                event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                 proto_tree_add_item(ntree, hf_nds_event_num, tvb, ioffset,
-                                    2, event_num);
+                                    2, ENC_LITTLE_ENDIAN);
                 ioffset = ioffset + 2;
             }
             else /* Process the full RDN history including ancestors */
@@ -6439,8 +6385,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                 sub1tree = proto_item_add_subtree(sub1item, ett_nds);
                 ioffset = ioffset + 4;
                 for (i=1; i <= value1; i++) {
-                    sub2item = proto_tree_add_text(sub1tree, tvb, ioffset, 0, "Item %u", i);
-                    sub2tree = proto_item_add_subtree(sub2item, ett_nds);
+                    sub2tree = proto_tree_add_subtree_format(sub1tree, tvb, ioffset, 0, ett_nds, NULL, "Item %u", i);
                     ioffset += align_4(tvb, ioffset);
 
                     value5 = tvb_get_letohl(tvb, ioffset);
@@ -6455,13 +6400,11 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
                                                    4, &ns, "Timestamp: %s",
                                                    abs_time_secs_to_str(wmem_packet_scope(), ns.secs, ABSOLUTE_TIME_LOCAL, TRUE));
                         ioffset += 4;
-                        replica_num = tvb_get_letohs(tvb, ioffset);   /* Replica */
                         proto_tree_add_item(sub2tree, hf_nds_replica_num, tvb, ioffset,
-                                            2, replica_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
-                        event_num = tvb_get_letohs(tvb, ioffset);   /* Event */
                         proto_tree_add_item(sub2tree, hf_nds_event_num, tvb, ioffset,
-                                            2, event_num);
+                                            2, ENC_LITTLE_ENDIAN);
                         ioffset = ioffset + 2;
                         value2 = tvb_get_letohl(tvb, ioffset);  /* Distinguished Name Len, String[len]*/
                         ioffset = ioffset + 4;
@@ -6582,9 +6525,9 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         ioffset = ioffset+2;
         process_bitfield(ntree, tvb, &temp_values);
         ioffset += 4;
-        proto_tree_add_item(ntree, hf_nds_time_filter, tvb, ioffset, 4, FALSE);
+        proto_tree_add_item(ntree, hf_nds_time_filter, tvb, ioffset, 4, ENC_BIG_ENDIAN);
         ioffset += 4;
-        proto_tree_add_item(ntree, hf_nds_all_attr, tvb, ioffset, 4, FALSE);
+        proto_tree_add_item(ntree, hf_nds_all_attr, tvb, ioffset, 4, ENC_BIG_ENDIAN);
         ioffset += 4;
         value2 = tvb_get_letohl(tvb, ioffset);
         sub1item = proto_tree_add_uint_format(ntree, hf_nds_number_of_items, tvb, ioffset,
@@ -6592,8 +6535,7 @@ process_multivalues(proto_tree *ncp_tree, tvbuff_t *tvb, packet_info *pinfo, nds
         sub1tree = proto_item_add_subtree(sub1item, ett_nds);
         ioffset += 4;
         for (i=1; i<=value2; i++) {
-            sub2item = proto_tree_add_text(sub1tree, tvb, ioffset, 0, "Attribute %u", i);
-            sub2tree = proto_item_add_subtree(sub2item, ett_nds);
+            sub2tree = proto_tree_add_subtree_format(sub1tree, tvb, ioffset, 0, ett_nds, NULL, "Attribute %u", i);
             ioffset += align_4(tvb, ioffset);
             value3 = tvb_get_letohl(tvb, ioffset);  /* Attribute Name */
             ioffset = ioffset + 4;
@@ -6627,22 +6569,22 @@ dissect_ncp_89_6_request(tvbuff_t *tvb, proto_tree *volatile ncp_tree, guint32 o
     guint32 string_len, datatype, count, i;
 
     datatype = tvb_get_letohl(tvb, offset);
-    proto_tree_add_item(ncp_tree, hf_ncp_data_type_flag, tvb, offset, 1, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_data_type_flag, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
-    proto_tree_add_item(ncp_tree, hf_ncp_reserved5, tvb, offset, 5, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_reserved5, tvb, offset, 5, ENC_NA);
     offset += 5;
     count = tvb_get_guint8(tvb, offset);
-    proto_tree_add_item(ncp_tree, hf_ncp_path_count, tvb, offset, 1, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_path_count, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
     for (i=0; i < count; i++) {
         if (datatype == 0) {
             string_len = (tvb_get_guint8(tvb, offset))+1;
-            proto_tree_add_item(ncp_tree, hf_ncp_directory_path, tvb, offset+1, string_len-1, TRUE);
+            proto_tree_add_item(ncp_tree, hf_ncp_directory_path, tvb, offset+1, string_len-1, ENC_ASCII|ENC_NA);
         }
         else
         {
             string_len = (tvb_get_letohs(tvb, offset))+2;
-            proto_tree_add_item(ncp_tree, hf_ncp_directory_path, tvb, offset+2, string_len-2, TRUE);
+            proto_tree_add_item(ncp_tree, hf_ncp_directory_path, tvb, offset+2, string_len-2, ENC_ASCII|ENC_NA);
         }
         offset += string_len;
         if(tvb_captured_length_remaining(tvb, offset) < 4 )
@@ -6665,17 +6607,17 @@ dissect_ncp_123_11_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree, ncp_req_h
         loffset += 8;
     }
     string_len = tvb_get_guint8(tvb, loffset);
-    proto_tree_add_item(ncp_tree, hf_ncp_file_name_12, tvb, loffset+1, string_len, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_file_name_12, tvb, loffset+1, string_len, ENC_ASCII|ENC_NA);
     loffset += string_len+1;
     string_len = tvb_get_guint8(tvb, loffset);
-    proto_tree_add_item(ncp_tree, hf_ncp_name12, tvb, loffset+1, string_len, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_name12, tvb, loffset+1, string_len, ENC_ASCII|ENC_NA);
     loffset += string_len+1;
     string_len = tvb_get_guint8(tvb, loffset);
-    proto_tree_add_item(ncp_tree, hf_ncp_copyright, tvb, loffset+1, string_len, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_copyright, tvb, loffset+1, string_len, ENC_ASCII|ENC_NA);
 }
 
 static void
-dissect_ncp_123_17_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
+dissect_ncp_123_17_reply(tvbuff_t *tvb, packet_info* pinfo, proto_tree *volatile ncp_tree)
 {
     proto_tree              *atree;
     proto_item              *aitem;
@@ -6683,15 +6625,14 @@ dissect_ncp_123_17_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
     guint16 x;
 
     number_of_items = tvb_get_letohl(tvb, 36);
-    proto_tree_add_item(ncp_tree, hf_ncp_items_in_packet, tvb, 36, 4, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_items_in_packet, tvb, 36, 4, ENC_LITTLE_ENDIAN);
     loffset = 40;
     for (x = 1; x <= number_of_items; x++)
     {
-        aitem = proto_tree_add_text(ncp_tree, tvb, loffset, -1, "Network Address - %u", x);
-        atree = proto_item_add_subtree(aitem, ett_ncp);
+        atree = proto_tree_add_subtree_format(ncp_tree, tvb, loffset, -1, ett_ncp, &aitem, "Network Address - %u", x);
 
         addr_type = tvb_get_guint8(tvb, loffset);
-        proto_tree_add_item(atree, hf_ncp_transport_type, tvb, loffset, 1, TRUE);
+        proto_tree_add_item(atree, hf_ncp_transport_type, tvb, loffset, 1, ENC_LITTLE_ENDIAN);
         /* The address type is one byte of a 4 byte value. The next 4 bytes are
          * the length of the address. Since we already know the length based upon
          * the type of address, we can skip this value. So set the offset accourdingly */
@@ -6700,23 +6641,23 @@ dissect_ncp_123_17_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
         switch (addr_type)
         {
         case 1:
-            proto_tree_add_item(atree, hf_nds_net, tvb, loffset, 4, FALSE);
-            proto_tree_add_item(atree, hf_nds_node, tvb, loffset+4, 6, FALSE);
-            proto_tree_add_item(atree, hf_nds_socket, tvb, loffset+10, 2, FALSE);
+            proto_tree_add_item(atree, hf_nds_net, tvb, loffset, 4, ENC_BIG_ENDIAN);
+            proto_tree_add_item(atree, hf_nds_node, tvb, loffset+4, 6, ENC_NA);
+            proto_tree_add_item(atree, hf_nds_socket, tvb, loffset+10, 2, ENC_BIG_ENDIAN);
             loffset += 12;
             break;
         case 5:
-            proto_tree_add_item(atree, hf_nds_port, tvb, loffset, 2, FALSE);
-            proto_tree_add_item(atree, hf_add_ref_udp, tvb, loffset+2, 4, FALSE);
+            proto_tree_add_item(atree, hf_nds_port, tvb, loffset, 2, ENC_BIG_ENDIAN);
+            proto_tree_add_item(atree, hf_add_ref_udp, tvb, loffset+2, 4, ENC_BIG_ENDIAN);
             loffset += 6;
             break;
         case 6:
-            proto_tree_add_item(atree, hf_nds_port, tvb, loffset, 2, FALSE);
-            proto_tree_add_item(atree, hf_add_ref_tcp, tvb, loffset+2, 4, FALSE);
+            proto_tree_add_item(atree, hf_nds_port, tvb, loffset, 2, ENC_BIG_ENDIAN);
+            proto_tree_add_item(atree, hf_add_ref_tcp, tvb, loffset+2, 4, ENC_BIG_ENDIAN);
             loffset += 6;
             break;
         default:
-            proto_tree_add_text(atree, tvb, loffset, -1, "Unknown Address Type");
+            expert_add_info(pinfo, aitem, &ei_ncp_address_type);
             /* unknown type so read the length field and then
              * just skip the record and move on to the next */
             loffset += tvb_get_letohl(tvb, loffset - 4);
@@ -6731,6 +6672,12 @@ dissect_ncp_123_17_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
 }
 
 static void
+dissect_ncp_87_72_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
+{
+    proto_tree_add_item(ncp_tree, hf_ncp_bytes_actually_trans_64, tvb, tvb_captured_length_remaining(tvb, 0)-4, 4, ENC_BIG_ENDIAN);
+}
+
+static void
 dissect_ncp_23_26_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
 {
     /* For an IP-only server, the 4-byte IP address is placed into the 4-byte NetworkAddress
@@ -6738,16 +6685,179 @@ dissect_ncp_23_26_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
      * fields are left blank. */
     if (tvb_get_letohl(tvb, 12)==0) {
         /* IP Address */
-        proto_tree_add_item(ncp_tree, hf_ncp_ip_address, tvb, 8, 4, FALSE);
+        proto_tree_add_item(ncp_tree, hf_ncp_ip_address, tvb, 8, 4, ENC_BIG_ENDIAN);
     }
     else
     {
         /* IPX Address */
-        proto_tree_add_item(ncp_tree, hf_nds_net, tvb, 8, 4, FALSE);
-        proto_tree_add_item(ncp_tree, hf_nds_node, tvb, 12, 6, FALSE);
-        proto_tree_add_item(ncp_tree, hf_nds_socket, tvb, 18, 2, FALSE);
+        proto_tree_add_item(ncp_tree, hf_nds_net, tvb, 8, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(ncp_tree, hf_nds_node, tvb, 12, 6, ENC_NA);
+        proto_tree_add_item(ncp_tree, hf_nds_socket, tvb, 18, 2, ENC_BIG_ENDIAN);
     }
-    proto_tree_add_item(ncp_tree, hf_ncp_connection_type, tvb, 20, 1, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_connection_type, tvb, 20, 1, ENC_NA);
+}
+
+static void
+dissect_ncp_8x20req(tvbuff_t *tvb, proto_tree *volatile ncp_tree, guint32 offset, guint func)
+{
+    guint32 string_len, str_length, buffer_offset;
+    gint i;
+    guint16 c_char;
+    char *string_buf;
+    gint length_remaining = 0;
+
+    length_remaining = tvb_captured_length_remaining(tvb, offset);
+    if (func == 0x57)
+    {
+        string_len = tvb_get_guint8(tvb, offset);
+        str_length = tvb_get_guint8(tvb, offset);
+    }
+    else
+    {
+        string_len = tvb_get_letohs(tvb, offset);
+        str_length = tvb_get_letohs(tvb, offset);
+    }
+
+    if((gint)str_length > length_remaining)
+    {
+        THROW(ReportedBoundsError);
+    }
+
+    string_buf = (char *)wmem_alloc(wmem_packet_scope(), 255);
+    string_buf[0] = '\0';
+    offset++;
+    buffer_offset = offset;
+
+    for ( i = 0; i <= (gint)str_length; i++ )
+    {
+        c_char = tvb_get_guint8(tvb, buffer_offset );
+        if (c_char<0x20 || c_char>0x7e)
+        {
+            if (c_char == 0xff || c_char == 0xef)
+            {
+                if (c_char == 0xff)
+                {
+                    buffer_offset++;
+                    length_remaining--;
+                    c_char = tvb_get_guint8(tvb, buffer_offset);
+                    if (c_char == 0x3f || c_char == 0x2a || c_char == 0xbf || c_char == 0xaa || c_char == 0xae)
+                    {
+                        if (c_char == 0x3f)
+                        {
+                            c_char = '?';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "Wildcard Question");
+                        }
+                        if (c_char == 0x2a)
+                        {
+                            c_char = '*';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "Wildcard Asterisk");
+                        }
+                        if (c_char == 0xbf)
+                        {
+                            c_char = '?';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Question");
+                        }
+                        if (c_char == 0xaa)
+                        {
+                            c_char = '*';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Asterisk");
+                        }
+                        if (c_char == 0xae)
+                        {
+                            c_char = '.';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Period");
+                        }
+                    }
+                    else
+                    {
+                        c_char = '.';
+                        string_buf[i] = (char) c_char;
+                    }
+                }
+                if (c_char == 0xef)
+                {
+                    buffer_offset++;
+                    length_remaining--;
+                    c_char = tvb_get_guint8(tvb, buffer_offset);
+                    if (c_char == 0xa3)
+                    {
+                        buffer_offset++;
+                        length_remaining--;
+                        c_char = tvb_get_guint8(tvb, buffer_offset);
+                        if (c_char == 0xbb)
+                        {
+                            c_char = '?';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "Wildcard Question");
+                        }
+                        if (c_char == 0xbc)
+                        {
+                            c_char = '*';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "Wildcard Asterisk");
+                        }
+                        if (c_char == 0xbd)
+                        {
+                            c_char = '?';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Question");
+                        }
+                        if (c_char == 0xbe)
+                        {
+                            c_char = '*';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Asterisk");
+                        }
+                        if (c_char == 0xbf)
+                        {
+                            c_char = '.';
+                            string_buf[i] = c_char & 0xff;
+                            proto_tree_add_uint_format_value(ncp_tree, hf_search_modifier, tvb, buffer_offset-1, 2, c_char, "DOS Wildcard Period");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (c_char != 0x00)
+                {
+                    c_char = '.';
+                    string_buf[i] = (char) c_char;
+                }
+                else
+                {
+                    i--;
+                    str_length--;
+                    offset++;
+                }
+            }
+        }
+        else
+        {
+            string_buf[i] = c_char & 0xff;
+        }
+        buffer_offset++;
+        length_remaining--;
+
+        if(length_remaining==1)
+        {
+            break;
+        }
+        if (i >= 1023) { /* Don't process beyond the size of our variable */
+            break;       /* If string is too long just return the first 1K. */
+        }
+    }
+    if (i < 0) {
+        i = 0;
+    }
+    string_buf[i+1] = '\0';
+
+    proto_tree_add_string(ncp_tree, hf_search_pattern, tvb, offset, string_len, string_buf);
 }
 
 static void
@@ -6760,24 +6870,27 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
     proto_tree          *atree, *btree;
     proto_item          *aitem, *bitem;
 
-    aitem = proto_tree_add_text(ncp_tree, tvb, 8, 9, "Search Sequence:");
-    atree = proto_item_add_subtree(aitem, ett_ncp);
+    if ((request_value->req_mask ==0) & (request_value->req_mask_ext == 0))
+    {
+        return;
+    }
+    atree = proto_tree_add_subtree(ncp_tree, tvb, 8, 9, ett_ncp, &aitem, "Search Sequence");
 
-    proto_tree_add_item(atree, hf_ncp_volume_number, tvb, 8, 1, TRUE);
-    proto_tree_add_item(atree, hf_ncp_directory_entry_number, tvb, 9, 4, TRUE);
-    proto_tree_add_item(atree, hf_ncp_sequence_number, tvb, 13, 4, TRUE);
+    proto_tree_add_item(atree, hf_ncp_volume_number, tvb, 8, 1, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(atree, hf_ncp_directory_entry_number, tvb, 9, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(atree, hf_ncp_sequence_number, tvb, 13, 4, ENC_LITTLE_ENDIAN);
 
-    proto_tree_add_item(ncp_tree, hf_ncp_more_flag, tvb, 17, 1, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_more_flag, tvb, 17, 1, ENC_LITTLE_ENDIAN);
     number_of_items = tvb_get_letohs(tvb, 18);
-    proto_tree_add_item(ncp_tree, hf_ncp_info_count, tvb, 18, 2, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ncp_info_count, tvb, 18, 2, ENC_LITTLE_ENDIAN);
     loffset = 20;
     for (x = 1; x <= number_of_items; x++ )
     {
-        aitem = proto_tree_add_text(ncp_tree, tvb, loffset, -1, "Information Item %u", x);
-        atree = proto_item_add_subtree(aitem, ett_ncp);
+        atree = proto_tree_add_subtree_format(ncp_tree, tvb, loffset, -1, ett_ncp, &aitem, "Information Item %u", x);
+
         /* Data Stream Space Allocated */
         if (request_value->req_mask & 0x0002) {
-            proto_tree_add_item(atree, hf_ncp_data_stream_space_alloc, tvb, loffset, 4, TRUE);
+            proto_tree_add_item(atree, hf_ncp_data_stream_space_alloc, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
         else
@@ -6788,8 +6901,8 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
         }
         /* Attributes */
         if (request_value->req_mask & 0x0004) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Attributes");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Attributes");
+
             ptvc = ptvcursor_new(btree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_attributes_struct,
                     NULL, TRUE, ncp_rec);
@@ -6805,9 +6918,9 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
         }
         /* Data Stream Size */
         if (request_value->req_mask & 0x0008) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Data Stream Size");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            proto_tree_add_item(btree, hf_ncp_data_stream_size, tvb, loffset, 4, TRUE);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Data Stream Size");
+
+            proto_tree_add_item(btree, hf_ncp_data_stream_size, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
             loffset += 4;
             proto_item_set_end(bitem, tvb, loffset);
         }
@@ -6819,10 +6932,10 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
         }
         /* Total Stream Size */
         if (request_value->req_mask & 0x0010) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Total Stream Size");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            proto_tree_add_item(btree, hf_ncp_ttl_ds_disk_space_alloc, tvb, loffset, 4, TRUE);
-            proto_tree_add_item(btree, hf_ncp_number_of_data_streams, tvb, loffset+4, 2, TRUE);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Total Stream Size");
+
+            proto_tree_add_item(btree, hf_ncp_ttl_ds_disk_space_alloc, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(btree, hf_ncp_number_of_data_streams, tvb, loffset+4, 2, ENC_LITTLE_ENDIAN);
             loffset += 6;
             proto_item_set_end(bitem, tvb, loffset);
         }
@@ -6832,10 +6945,26 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 loffset += 6;
             }
         }
+        /* Extended Attributes oldstyle location*/
+        if (request_value->req_mask & 0x0020 && !ncp_newstyle) {
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Extended Attributes");
+            ptvc = ptvcursor_new(btree, tvb, loffset);
+            process_ptvc_record(ptvc, ptvc_struct_ea_info_struct,
+                    NULL, TRUE, ncp_rec);
+            ptvcursor_free(ptvc);
+            loffset += 12;
+            proto_item_set_end(bitem, tvb, loffset);
+        }
+        else
+        {
+            if ((request_value->req_mask_ext & 0x8000)==FALSE && !ncp_newstyle) {
+                loffset += 12;
+            }
+        }
         /* Extended Attributes new style location*/
         if (request_value->req_mask & 0x0020 && ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Extended Attributes");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Extended Attributes");
+
             ptvc = ptvcursor_new(btree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_ea_info_struct,
                     NULL, TRUE, ncp_rec);
@@ -6849,12 +6978,11 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 loffset += 12;
             }
         }
-        /* Creation Information old style location */
-        if (request_value->req_mask & 0x0100 && !ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Creation");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+        /* Archive Information */
+        if (request_value->req_mask & 0x0040) {
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Archive");
             ptvc = ptvcursor_new(btree, tvb, loffset);
-            process_ptvc_record(ptvc, ptvc_struct_creation_info_struct,
+            process_ptvc_record(ptvc, ptvc_struct_archive_info_struct,
                     NULL, TRUE, ncp_rec);
             ptvcursor_free(ptvc);
             loffset += 8;
@@ -6862,14 +6990,14 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
         }
         else
         {
-            if ((request_value->req_mask_ext & 0x8000)==FALSE && !ncp_newstyle) {
+            if ((request_value->req_mask_ext & 0x8000)==FALSE) {
                 loffset += 8;
             }
         }
         /* Modification Information */
         if (request_value->req_mask & 0x0080) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Modification");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Modification");
+
             ptvc = ptvcursor_new(btree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_modify_info_struct,
                     NULL, TRUE, ncp_rec);
@@ -6883,10 +7011,25 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 loffset += 10;
             }
         }
+        /* Creation Information old style location */
+        if (request_value->req_mask & 0x0100 && !ncp_newstyle) {
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Creation");
+            ptvc = ptvcursor_new(btree, tvb, loffset);
+            process_ptvc_record(ptvc, ptvc_struct_creation_info_struct,
+                    NULL, TRUE, ncp_rec);
+            ptvcursor_free(ptvc);
+            loffset += 8;
+            proto_item_set_end(bitem, tvb, loffset);
+        }
+        else
+        {
+            if ((request_value->req_mask_ext & 0x8000)==FALSE && !ncp_newstyle) {
+                loffset += 8;
+            }
+        }
         /* Creation Information new style location */
         if (request_value->req_mask & 0x0100 && ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Creation");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Creation");
             ptvc = ptvcursor_new(btree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_creation_info_struct,
                     NULL, TRUE, ncp_rec);
@@ -6900,21 +7043,31 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 loffset += 8;
             }
         }
-        /* Archive Information */
-        if (request_value->req_mask & 0x0040) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Archive");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+        /* Name Space Information */
+        if (request_value->req_mask & 0x0200) {
+            proto_tree_add_item(atree, hf_ncp_creator_name_space_number, tvb, loffset, 1, ENC_LITTLE_ENDIAN);
+            loffset += 4;
+        }
+        else
+        {
+            if ((request_value->req_mask_ext & 0x8000)==FALSE) {
+                loffset += 4;
+            }
+        }
+        /* Directory Entry */
+        if (request_value->req_mask & 0x0400) {
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Directory Entry");
             ptvc = ptvcursor_new(btree, tvb, loffset);
-            process_ptvc_record(ptvc, ptvc_struct_archive_info_struct,
+            process_ptvc_record(ptvc, ptvc_struct_dir_entry_struct,
                     NULL, TRUE, ncp_rec);
             ptvcursor_free(ptvc);
-            loffset += 8;
+            loffset += 12;
             proto_item_set_end(bitem, tvb, loffset);
         }
         else
         {
             if ((request_value->req_mask_ext & 0x8000)==FALSE) {
-                loffset += 8;
+                loffset += 12;
             }
         }
         /* Rights Information */
@@ -6931,82 +7084,48 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 loffset += 2;
             }
         }
-        /* Directory Entry */
-        if (request_value->req_mask & 0x0400) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Directory Entry");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            ptvc = ptvcursor_new(btree, tvb, loffset);
-            process_ptvc_record(ptvc, ptvc_struct_dir_entry_struct,
-                    NULL, TRUE, ncp_rec);
-            ptvcursor_free(ptvc);
-            loffset += 12;
-            proto_item_set_end(bitem, tvb, loffset);
-        }
-        else
-        {
-            if ((request_value->req_mask_ext & 0x8000)==FALSE) {
-                loffset += 12;
-            }
-        }
-        /* Extended Attributes oldstyle location*/
-        if (request_value->req_mask & 0x0020 && !ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Extended Attributes");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            ptvc = ptvcursor_new(btree, tvb, loffset);
-            process_ptvc_record(ptvc, ptvc_struct_ea_info_struct,
-                    NULL, TRUE, ncp_rec);
-            ptvcursor_free(ptvc);
-            loffset += 12;
-            proto_item_set_end(bitem, tvb, loffset);
-        }
-        else
-        {
-            if ((request_value->req_mask_ext & 0x8000)==FALSE && !ncp_newstyle) {
-                loffset += 12;
-            }
-        }
-        /* Name Space Information */
-        if (request_value->req_mask & 0x0200) {
-            proto_tree_add_item(atree, hf_ncp_creator_name_space_number, tvb, loffset, 1, TRUE);
-            loffset += 4;
-        }
-        else
-        {
-            if ((request_value->req_mask_ext & 0x8000)==FALSE) {
-                loffset += 4;
-            }
-        }
+        /* Return ID Information */
         if (request_value->req_mask & 0x1000) {
-            proto_tree_add_item(atree, hf_ncp_curr_ref_id, tvb, loffset, 2, TRUE);
+            proto_tree_add_item(atree, hf_ncp_curr_ref_id, tvb, loffset, 2, ENC_LITTLE_ENDIAN);
             loffset += 2;
         }
+        /* Return Name Space Attributes Information */
         if (request_value->req_mask & 0x2000) {
-            proto_tree_add_item(atree, hf_ncp_attr_def_32, tvb, loffset, 1, TRUE);
+            proto_tree_add_item(atree, hf_ncp_attr_def_32, tvb, loffset, 1, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
+        /* Return Actual Information */
         if (request_value->req_mask & 0x4000) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Actual");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            proto_tree_add_item(btree, hf_ncp_data_stream_num_long, tvb, loffset, 4, TRUE);
-            proto_tree_add_item(btree, hf_ncp_data_stream_fat_blks, tvb, loffset+4, 4, TRUE);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Actual");
+
+            proto_tree_add_item(btree, hf_ncp_data_stream_num_long, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
+            proto_tree_add_item(btree, hf_ncp_data_stream_fat_blks, tvb, loffset+4, 4, ENC_LITTLE_ENDIAN);
             loffset += 8;
             proto_item_set_end(bitem, tvb, loffset);
         }
+        /* Return Logical Information */
         if (request_value->req_mask & 0x8000) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Logical");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
-            proto_tree_add_item(btree, hf_ncp_data_stream_num_long, tvb, loffset, 4, TRUE);
-            proto_tree_add_item(btree, hf_ncp_data_stream_size, tvb, loffset+4, 4, TRUE);
-            loffset += 8;
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Logical");
+            proto_tree_add_item(btree, hf_ncp_number_of_data_streams_long, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
+            number_of_items = tvb_get_letohs(tvb, loffset);
+            loffset += 4;
+            for (x = 1; x <= number_of_items; x++ )
+            {
+                proto_tree_add_item(btree, hf_ncp_data_stream_num_long, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
+                proto_tree_add_item(btree, hf_ncp_data_stream_size, tvb, loffset+4, 4, ENC_LITTLE_ENDIAN);
+                loffset += 8;
+            }
             proto_item_set_end(bitem, tvb, loffset);
         }
+        /* Last Update */
         if (request_value->req_mask_ext & 0x0001 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_sec_rel_to_y2k, tvb, loffset, 4, TRUE);
+            proto_tree_add_item(atree, hf_ncp_sec_rel_to_y2k, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
+        /* Dos Name */
         if (request_value->req_mask_ext & 0x0002 && ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "DOS Name");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "DOS Name");
+
             if (ncp_rec->func == 0x57) {
                 str_length = tvb_get_guint8(tvb, loffset);
                 loffset += 1;
@@ -7016,10 +7135,11 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
                 str_length = tvb_get_letohs(tvb, loffset);
                 loffset += 2;
             }
-            proto_tree_add_item(btree, hf_ncp_file_name_12, tvb, loffset, str_length, FALSE);
+            proto_tree_add_item(btree, hf_ncp_file_name_12, tvb, loffset, str_length, ENC_ASCII|ENC_NA);
             loffset += str_length;
             proto_item_set_end(bitem, tvb, loffset);
         }
+        /* Flush Time */
         if (request_value->req_mask_ext & 0x0004 && ncp_newstyle) {
             ptvc = ptvcursor_new(atree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_flush_time_struct,
@@ -7027,25 +7147,30 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
             ptvcursor_free(ptvc);
             loffset += 4;
         }
+        /* Parental */
         if (request_value->req_mask_ext & 0x0008 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_parent_base_id, tvb, loffset, 4, TRUE);
+            proto_tree_add_item(atree, hf_ncp_parent_base_id, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
+        /* MAC finder */
         if (request_value->req_mask_ext & 0x0010 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_mac_finder_info, tvb, loffset, 32, TRUE);
+            proto_tree_add_item(atree, hf_ncp_mac_finder_info, tvb, loffset, 32, ENC_NA);
             loffset += 32;
         }
+        /* Sibling */
         if (request_value->req_mask_ext & 0x0020 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_sibling_count, tvb, loffset, 4, TRUE);
+            proto_tree_add_item(atree, hf_ncp_sibling_count, tvb, loffset, 4, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
+        /* Effective */
         if (request_value->req_mask_ext & 0x0040 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_effective_rights, tvb, loffset, 1, TRUE);
+            proto_tree_add_item(atree, hf_ncp_effective_rights, tvb, loffset, 1, ENC_LITTLE_ENDIAN);
             loffset += 4;
         }
+        /* MAC Date */
         if (request_value->req_mask_ext & 0x0080 && ncp_newstyle) {
-            bitem = proto_tree_add_text(atree, tvb, loffset, -1, "Mac Date");
-            btree = proto_item_add_subtree(bitem, ett_ncp);
+            btree = proto_tree_add_subtree(atree, tvb, loffset, -1, ett_ncp, &bitem, "Mac Date");
+
             ptvc = ptvcursor_new(btree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_mac_time_struct,
                     NULL, TRUE, ncp_rec);
@@ -7053,6 +7178,7 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
             loffset += 8;
             proto_item_set_end(bitem, tvb, loffset);
         }
+        /* Last Access */
         if (request_value->req_mask_ext & 0x0100 && ncp_newstyle) {
             ptvc = ptvcursor_new(atree, tvb, loffset);
             process_ptvc_record(ptvc, ptvc_struct_last_access_time_struct,
@@ -7060,8 +7186,9 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
             ptvcursor_free(ptvc);
             loffset += 2;
         }
+        /* 64 bit file sizes */
         if (request_value->req_mask_ext & 0x0400 && ncp_newstyle) {
-            proto_tree_add_item(atree, hf_ncp_f_size_64bit, tvb, loffset, 8, TRUE);
+            proto_tree_add_item(atree, hf_ncp_f_size_64bit, tvb, loffset, 8, ENC_LITTLE_ENDIAN);
             loffset += 8;
         }
         /* We always return the file name */
@@ -7074,7 +7201,7 @@ dissect_ncp_8x20reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree,
             str_length = tvb_get_letohs(tvb, loffset);
             loffset += 2;
         }
-        proto_tree_add_item(atree, hf_ncp_file_name_12, tvb, loffset, str_length, FALSE);
+        proto_tree_add_item(atree, hf_ncp_file_name_12, tvb, loffset, str_length, ENC_UTF_8);
         loffset += str_length;
 
         proto_item_set_end(aitem, tvb, loffset);
@@ -7102,13 +7229,13 @@ dissect_ncp_123_62_reply(tvbuff_t *tvb, proto_tree *volatile ncp_tree)
     case 4:   /* { 0x04, "Time Value" },    */
     case 6:   /* { 0x06, "Trigger Value" }, */
     case 7:   /* { 0x07, "Numeric Value" }, */
-        proto_tree_add_item(ncp_tree, hf_srvr_param_number, tvb, 37+(gint)strlen(param_string), 4, TRUE);
+        proto_tree_add_item(ncp_tree, hf_srvr_param_number, tvb, 37+(gint)strlen(param_string), 4, ENC_LITTLE_ENDIAN);
         break;
     case 1:   /* { 0x01, "Boolean Value" }, */
-        proto_tree_add_item(ncp_tree, hf_srvr_param_boolean, tvb, 37+(gint)strlen(param_string), 1, TRUE);
+        proto_tree_add_item(ncp_tree, hf_srvr_param_boolean, tvb, 37+(gint)strlen(param_string), 1, ENC_LITTLE_ENDIAN);
         break;
     case 5:   /* { 0x05, "String Value" },  */
-        proto_tree_add_item(ncp_tree, hf_srvr_param_string, tvb, 37+(gint)strlen(param_string), -1, TRUE);
+        proto_tree_add_item(ncp_tree, hf_srvr_param_string, tvb, 37+(gint)strlen(param_string), -1, ENC_ASCII|ENC_NA);
         break;
     default:
         break;
@@ -7577,7 +7704,7 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
 
         temp_tree = proto_tree_create_root(pinfo);
         proto_tree_set_visible(temp_tree, FALSE);
-        ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, FALSE);
+        ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, ENC_NA);
         ncp_tree = proto_item_add_subtree(ti, ett_ncp);
     }
 
@@ -7642,7 +7769,7 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
                     request_value->length = tvb_get_ntohs(tvb, 7);
                 }
                 proto_tree_add_item(ncp_tree, hf_ncp_length, tvb, 7,
-                                    2, FALSE);
+                                    2, ENC_BIG_ENDIAN);
                 proto_tree_add_uint_format(ncp_tree, hf_ncp_subfunc, tvb, 9, 1,
                                            subfunc, "SubFunction: %u (0x%02x)",
                                            subfunc, subfunc);
@@ -7855,6 +7982,21 @@ dissect_ncp_request(tvbuff_t *tvb, packet_info *pinfo,
         if (func == 0x59 && subfunc == 0x6) {
             dissect_ncp_89_6_request(tvb, ncp_tree, 22);
         }
+        /* Need to parse for Novell specific wildcard values in Search Pattern, decode this ncp (89)/20 and (89)/03 req manually here. */
+        if (ncp_rec->func == 0x59 && (ncp_rec->subfunc == 0x14 || ncp_rec->subfunc == 0x03)) {
+            if (ncp_rec->func == 0x59 && ncp_rec->subfunc == 0x03)
+            {
+                 dissect_ncp_8x20req(tvb, ncp_tree, 26, ncp_rec->func);
+            }
+/*if (ncp_rec->func == 0x57)
+{
+            dissect_ncp_8x20req(tvb, ncp_tree, 27, ncp_rec->func);
+}*/
+            else
+            {
+                dissect_ncp_8x20req(tvb, ncp_tree, 28, ncp_rec->func);
+            }
+        }
         /* Check to see if we need to report to the expert table */
         trap_for_expert_event(ncp_tree, pinfo, ncp_rec, 0);
         /* Free the temporary proto_tree */
@@ -7870,7 +8012,6 @@ static void
 dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                        proto_tree *ncp_tree, ncp_req_hash_value *request_value)
 {
-    const char *reply_buffer;
     guint8     ping_version;
     guint32    nds_string_len;
     guint32    nds_offset;
@@ -7881,15 +8022,14 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
     nstime_t   ns;
 
     ping_version = tvb_get_guint8(tvb, 8);
-    proto_tree_add_item(ncp_tree, hf_ping_version, tvb, 8, 1, TRUE);
+    proto_tree_add_item(ncp_tree, hf_ping_version, tvb, 8, 1, ENC_NA);
     if (ping_version == 9) {
         nds_string_len = tvb_get_ntohl(tvb, 9);
         nds_offset = nds_string_len+16;
-        tvb_ensure_bytes_exist(tvb, 16, nds_string_len);
-        proto_tree_add_item(ncp_tree, hf_nds_tree_name, tvb, 16, nds_string_len, FALSE);
-        proto_tree_add_item(ncp_tree, hf_nds_reply_depth, tvb, nds_offset, 4, FALSE);
-        proto_tree_add_item(ncp_tree, hf_nds_reply_rev, tvb, (nds_offset+4), 4, FALSE);
-        proto_tree_add_item(ncp_tree, hf_nds_reply_flags, tvb, (nds_offset+8), 4, TRUE);
+        proto_tree_add_item(ncp_tree, hf_nds_tree_name, tvb, 16, nds_string_len, ENC_ASCII|ENC_NA);
+        proto_tree_add_item(ncp_tree, hf_nds_reply_depth, tvb, nds_offset, 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(ncp_tree, hf_nds_reply_rev, tvb, (nds_offset+4), 4, ENC_BIG_ENDIAN);
+        proto_tree_add_item(ncp_tree, hf_nds_reply_flags, tvb, (nds_offset+8), 4, ENC_LITTLE_ENDIAN);
     }
     else {
         nds_offset = 12;
@@ -7989,11 +8129,11 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     nds_offset += 2;
                     break;
                 case 0x00000002:
-                    proto_tree_add_item(ncp_tree, hf_nds_reply_depth, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_reply_depth, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
                     break;
                 case 0x00000004:
-                    proto_tree_add_item(ncp_tree, hf_nds_reply_rev, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_reply_rev, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
                     break;
                 case 0x00000008:
@@ -8085,19 +8225,19 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     nds_offset += 4;
                     break;
                 case 0x00000020:
-                    proto_tree_add_item(ncp_tree, hf_nds_letter_ver, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_letter_ver, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
                     break;
                 case 0x00000040:
-                    proto_tree_add_item(ncp_tree, hf_nds_os_majver, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_os_majver, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
-                    proto_tree_add_item(ncp_tree, hf_nds_os_minver, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_os_minver, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
-                    proto_tree_add_item(ncp_tree, hf_ncp_os_revision, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_ncp_os_revision, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
                     break;
                 case 0x00000100:
-                    proto_tree_add_item(ncp_tree, hf_nds_lic_flags, tvb, nds_offset, 4, TRUE);
+                    proto_tree_add_item(ncp_tree, hf_nds_lic_flags, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
                     nds_offset += 4;
                     break;
                 case 0x00000200:
@@ -8125,9 +8265,7 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     }
                     nds_string_len = tvb_get_letohl(tvb, nds_offset);
                     nds_offset += 4;
-                    reply_buffer = get_string(tvb, nds_offset, nds_string_len);
-                    tvb_ensure_bytes_exist(tvb, nds_offset, nds_string_len);
-                    proto_tree_add_text(ncp_tree, tvb, nds_offset, nds_string_len, "SAP Name: %s", reply_buffer);
+                    proto_tree_add_item(ncp_tree, hf_sap_name, tvb, nds_offset, nds_string_len, ENC_ASCII|ENC_NA);
                     nds_offset += nds_string_len;
                     nds_offset += align_4(tvb, nds_offset);
                     break;
@@ -8138,9 +8276,7 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     }
                     nds_string_len = tvb_get_letohl(tvb, nds_offset);
                     nds_offset += 4;
-                    reply_buffer = get_string(tvb, nds_offset, nds_string_len);
-                    tvb_ensure_bytes_exist(tvb, nds_offset, nds_string_len);
-                    proto_tree_add_text(ncp_tree, tvb, nds_offset, nds_string_len, "NDS Tree Name: %s", reply_buffer);
+                    proto_tree_add_item(ncp_tree, hf_nds_tree_name, tvb, nds_offset, nds_string_len, ENC_ASCII|ENC_NA);
                     nds_offset += nds_string_len;
                     nds_offset += align_4(tvb, nds_offset);
                     break;
@@ -8151,9 +8287,7 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     }
                     nds_string_len = tvb_get_letohl(tvb, nds_offset);
                     nds_offset += 4;
-                    reply_buffer = get_string(tvb, nds_offset, nds_string_len);
-                    tvb_ensure_bytes_exist(tvb, nds_offset, nds_string_len);
-                    proto_tree_add_text(ncp_tree, tvb, nds_offset, nds_string_len, "OS Name: %s", reply_buffer);
+                    proto_tree_add_item(ncp_tree, hf_os_name, tvb, nds_offset, nds_string_len, ENC_ASCII|ENC_NA);
                     nds_offset += nds_string_len;
                     nds_offset += align_4(tvb, nds_offset);
                     break;
@@ -8164,9 +8298,7 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     }
                     nds_string_len = tvb_get_letohl(tvb, nds_offset);
                     nds_offset += 4;
-                    reply_buffer = get_string(tvb, nds_offset, nds_string_len);
-                    tvb_ensure_bytes_exist(tvb, nds_offset, nds_string_len);
-                    proto_tree_add_text(ncp_tree, tvb, nds_offset, nds_string_len, "Hardware Name: %s", reply_buffer);
+                    proto_tree_add_item(ncp_tree, hf_hardware_name, tvb, nds_offset, nds_string_len, ENC_ASCII|ENC_NA);
                     nds_offset += nds_string_len;
                     nds_offset += align_4(tvb, nds_offset);
                     break;
@@ -8177,9 +8309,7 @@ dissect_nds_ping_reply(tvbuff_t *tvb, packet_info *pinfo _U_,
                     }
                     nds_string_len = tvb_get_letohl(tvb, nds_offset);
                     nds_offset += 4;
-                    reply_buffer = get_string(tvb, nds_offset, nds_string_len);
-                    tvb_ensure_bytes_exist(tvb, nds_offset, nds_string_len);
-                    proto_tree_add_text(ncp_tree, tvb, nds_offset, nds_string_len, "Vendor Name: %s", reply_buffer);
+                    proto_tree_add_item(ncp_tree, hf_vendor_name, tvb, nds_offset, nds_string_len, ENC_ASCII|ENC_NA);
                     nds_offset += nds_string_len;
                     nds_offset += align_4(tvb, nds_offset);
                     break;
@@ -8257,7 +8387,7 @@ dissect_nds_reply(tvbuff_t *tvb, packet_info *pinfo,
         if(request_value->req_nds_prot_flags & 0x4000)
         {
             /* CRC is included in the NDS header so justify the offset */
-            proto_tree_add_item(ncp_tree, hf_nds_crc, tvb, nds_offset, 4, TRUE);
+            proto_tree_add_item(ncp_tree, hf_nds_crc, tvb, nds_offset, 4, ENC_LITTLE_ENDIAN);
             nds_offset += 4;
         }
         switch (request_value->nds_request_verb)
@@ -8817,7 +8947,7 @@ dissect_nds_reply(tvbuff_t *tvb, packet_info *pinfo,
                 else
                 {
                     proto_tree_add_item(ncp_tree, pvalues[i].hfname, tvb, pvalues[i].voffset,
-                                        pvalues[i].vlength, TRUE);
+                                        pvalues[i].vlength, ENC_NA);
                 }
                 break;
             case VTYPE_UINT8:
@@ -8951,7 +9081,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
 
              request_value = ncp_hash_lookup(conversation,
                                sequence, pinfo->fd->num);
-		}
+        }
         if (request_value) {
             ncp_rec = request_value->ncp_rec;
         }
@@ -9053,7 +9183,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
 
     conn_stat = tvb_get_guint8(tvb, 7);
     expert_item = proto_tree_add_item(ncp_tree, hf_ncp_connection_status, tvb,
-                                      7, 1, FALSE);
+                                      7, 1, ENC_NA);
     if (conn_stat != 0 && conn_stat != 0x40 ) {
         col_set_str(pinfo->cinfo, COL_INFO,
                     "Error: Bad Connection Status");
@@ -9095,10 +9225,6 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
         /* Due to lack of group repeat fields in reply structure, decode this ncp 87/20 reply manually here. */
         if ((ncp_rec->func == 0x57 || ncp_rec->func == 0x59) && ncp_rec->subfunc == 0x14) {
             dissect_ncp_8x20reply(tvb, ncp_tree, ncp_rec, request_value);
-        }
-        /* Process ncp 23/26 address records manually to format correctly. */
-        if (ncp_rec->func == 0x17 && ncp_rec->subfunc == 0x1a) {
-            dissect_ncp_23_26_reply(tvb, ncp_tree);
         }
         if (ncp_rec->func == 5 && ncp_echo_conn) {
             expert_add_info(pinfo, NULL, &ei_ncp_connection_destroyed);
@@ -9162,7 +9288,7 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
             }
             /* Process ncp 123/17 address records manually to format correctly. */
             if (ncp_rec->func == 0x7b && ncp_rec->subfunc == 0x11) {
-                dissect_ncp_123_17_reply(tvb, ncp_tree);
+                dissect_ncp_123_17_reply(tvb, pinfo, ncp_tree);
             }
             /* Process ncp 123/11 NLM names manually to format correctly. */
             if (ncp_rec->func == 0x7b && ncp_rec->subfunc == 0x0b && request_value) {
@@ -9172,13 +9298,21 @@ dissect_ncp_reply(tvbuff_t *tvb, packet_info *pinfo,
             if (ncp_rec->func == 0x7b && ncp_rec->subfunc == 0x3e) {
                 dissect_ncp_123_62_reply(tvb, ncp_tree);
             }
+            /* Process ncp 23/26 address records manually to format correctly. */
+            if (ncp_rec->func == 0x17 && ncp_rec->subfunc == 0x1a) {
+                dissect_ncp_23_26_reply(tvb, ncp_tree);
+            }
+            /* Process ncp 87/72 bytes transfered value. */
+            if (ncp_rec->func == 0x57 && ncp_rec->subfunc == 0x48) {
+                dissect_ncp_87_72_reply(tvb, ncp_tree);
+            }
+
         }
         /* Check to see if we need to report to the expert table */
         trap_for_expert_event(ncp_tree, pinfo, ncp_rec, 1);
     } else {
         if (tvb_reported_length(tvb) > 8) {
-            expert_item = proto_tree_add_text(ncp_tree, tvb, 8, -1,
-                                              "No request record found. Parsing is impossible.");
+            expert_item = proto_tree_add_item(ncp_tree, hf_no_request_record_found, tvb, 8, -1, ENC_NA);
             if (ncp_echo_err) {
                 expert_add_info(pinfo, expert_item, &ei_ncp_no_request_record_found);
             }
@@ -9252,7 +9386,7 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
         }
         if (type == NCP_SERVICE_REQUEST) {
             proto_tree_add_item(ncp_tree, hf_nds_buffer_size, tvb, foffset,
-                                4, TRUE);
+                                4, ENC_LITTLE_ENDIAN);
         }
         foffset = foffset+4;
         verb_string = val_to_str_const(nds_verb, ncp_nds_verb_vals,
@@ -11586,7 +11720,7 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
 
         temp_tree = proto_tree_create_root(pinfo);
         proto_tree_set_visible(temp_tree, FALSE);
-        ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, FALSE);
+        ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, ENC_NA);
         ncp_tree = proto_item_add_subtree(ti, ett_ncp);
     }
 
@@ -11632,9 +11766,9 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
 
             if (nds_frag == 0xffffffff) {
 
-                proto_tree_add_item(ncp_tree, hf_ncp_fragment_size, tvb, 12, 4, TRUE);
+                proto_tree_add_item(ncp_tree, hf_ncp_fragment_size, tvb, 12, 4, ENC_LITTLE_ENDIAN);
 
-                proto_tree_add_item(ncp_tree, hf_ncp_message_size, tvb, 16, 4, TRUE);
+                proto_tree_add_item(ncp_tree, hf_ncp_message_size, tvb, 16, 4, ENC_LITTLE_ENDIAN);
 
                 nds_prot_flags = tvb_get_letohs(tvb, 22);
                 prot_flags[0].vvalue = nds_prot_flags;
@@ -11762,12 +11896,12 @@ dissect_nds_request(tvbuff_t *tvb, packet_info *pinfo,
                         break;
 
                     case VTYPE_BYTES:
-                        proto_tree_add_bytes(ncp_tree, pvalues[i].hfname, tvb, pvalues[i].voffset,
-                                             pvalues[i].vlength, tvb_get_ptr(tvb, pvalues[i].voffset, pvalues[i].vvalue));
+                        proto_tree_add_item(ncp_tree, pvalues[i].hfname, tvb, pvalues[i].voffset,
+                                             pvalues[i].vlength, ENC_NA);
                         break;
 
                     case VTYPE_BOOLEAN:
-                        proto_tree_add_item(ncp_tree, pvalues[i].hfname, tvb, pvalues[i].voffset, pvalues[i].vlength, TRUE);
+                        proto_tree_add_item(ncp_tree, pvalues[i].hfname, tvb, pvalues[i].voffset, pvalues[i].vlength, ENC_LITTLE_ENDIAN);
                         break;
 
                     default:
@@ -11895,7 +12029,7 @@ dissect_ping_req(tvbuff_t *tvb, packet_info *pinfo,
 
             temp_tree = proto_tree_create_root(pinfo);
             proto_tree_set_visible(temp_tree, FALSE);
-            ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, FALSE);
+            ti = proto_tree_add_item(temp_tree, proto_ncp, tvb, 0, -1, ENC_NA);
             ncp_tree = proto_item_add_subtree(ti, ett_ncp);
         }
     }

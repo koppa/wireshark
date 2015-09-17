@@ -170,7 +170,6 @@ dissect_klm_test_call(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void*
 
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 static const vsff klm1_proc[] = {
 	{ KLMPROC_TEST,	"TEST",
 		dissect_klm_test_call,	dissect_klm_test_reply },
@@ -181,6 +180,9 @@ static const vsff klm1_proc[] = {
 	{ KLMPROC_UNLOCK,	"UNLOCK",
 		dissect_klm_unlock_call,	dissect_klm_stat_reply },
 	{ 0,	NULL,		NULL,				NULL }
+};
+static const rpc_prog_vers_info klm_vers_info[] = {
+	{ 1, klm1_proc, &hf_klm_procedure_v1 },
 };
 static const value_string klm1_proc_vals[] = {
 	{ KLMPROC_TEST,	  "TEST" },
@@ -254,9 +256,8 @@ void
 proto_reg_handoff_klm(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_klm, KLM_PROGRAM, ett_klm);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_klm, KLM_PROGRAM, 1, klm1_proc, hf_klm_procedure_v1);
+	rpc_init_prog(proto_klm, KLM_PROGRAM, ett_klm,
+	    G_N_ELEMENTS(klm_vers_info), klm_vers_info);
 }
 
 /*

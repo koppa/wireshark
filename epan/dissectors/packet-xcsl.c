@@ -173,12 +173,7 @@ static void dissect_xcsl_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     /* switch whether it concerns a command or an answer */
     request = FALSE;
 
-    while (tvb_reported_length_remaining(tvb, offset) != 0) {
-
-        length_remaining = tvb_ensure_length_remaining(tvb, offset);
-        if ( length_remaining == -1 ) {
-            return;
-        }
+    while ((length_remaining = tvb_reported_length_remaining(tvb, offset)) > 0) {
 
         /* get next item */
         if (!(get_next_item(tvb, offset, length_remaining, str, &next_offset, &len))) {
@@ -348,7 +343,7 @@ void proto_register_xcsl(void) {
 
 /* In case it concerns TCP, try to match on the xcsl header */
 void proto_reg_handoff_xcsl(void) {
-    heur_dissector_add("tcp", dissect_xcsl_tcp_heur, hfi_xcsl->id);
+    heur_dissector_add("tcp", dissect_xcsl_tcp_heur, "XCSL over TCP", "xcsl_tcp", hfi_xcsl->id, HEURISTIC_ENABLE);
 }
 
 /*

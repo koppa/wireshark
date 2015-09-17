@@ -25,7 +25,6 @@
 
 #include "epan/stat_tap_ui.h"
 
-#include <QMessageBox>
 #include <QTreeWidget>
 
 #include "wireshark_application.h"
@@ -69,7 +68,7 @@ enum {
 class SimpleStatisticsTreeWidgetItem : public QTreeWidgetItem
 {
 public:
-    SimpleStatisticsTreeWidgetItem(QTreeWidget *parent, int num_fields, const stat_tap_table_item_type *fields) :
+    SimpleStatisticsTreeWidgetItem(QTreeWidgetItem *parent, int num_fields, const stat_tap_table_item_type *fields) :
         QTreeWidgetItem (parent, simple_row_type_),
         num_fields_(num_fields),
         fields_(fields)
@@ -188,7 +187,7 @@ TapParameterDialog *SimpleStatisticsDialog::createSimpleStatisticsDialog(QWidget
     return new SimpleStatisticsDialog(parent, cf, stu, filter);
 }
 
-void SimpleStatisticsDialog::addSimpleStatisticsTable(const _stat_tap_table *st_table)
+void SimpleStatisticsDialog::addMissingRows(struct _new_stat_data_t *stat_data)
 {
     // Hierarchy:
     // - tables (GTK+ UI only supports one currently)
@@ -197,11 +196,29 @@ void SimpleStatisticsDialog::addSimpleStatisticsTable(const _stat_tap_table *st_
     // For multiple table support we might want to add them as subtrees, with
     // the top-level tree item text set to the column labels for that table.
 
-    for (guint element = 0; element < st_table->num_elements; element++) {
-        stat_tap_table_item_type* fields = new_stat_tap_get_field_data(st_table, element, 0);
-        new SimpleStatisticsTreeWidgetItem(statsTreeWidget(), st_table->num_fields, fields);
-    }
+    // Add any missing tables and rows.
+    for (guint table_idx = 0; table_idx < stat_data->new_stat_tap_data->tables->len; table_idx++) {
+        new_stat_tap_table* st_table = g_array_index(stat_data->new_stat_tap_data->tables, new_stat_tap_table*, table_idx);
+        QTreeWidgetItem *ti = NULL;
 
+        if ((int) table_idx >= statsTreeWidget()->topLevelItemCount()) {
+            ti = new QTreeWidgetItem(statsTreeWidget());
+            ti->setText(0, st_table->title);
+            ti->setFirstColumnSpanned(true);
+            ti->setExpanded(true);
+        } else {
+            ti = statsTreeWidget()->topLevelItem(table_idx);
+        }
+        for (guint element = ti->childCount(); element < st_table->num_elements; element++) {
+            stat_tap_table_item_type* fields = new_stat_tap_get_field_data(st_table, element, 0);
+            SimpleStatisticsTreeWidgetItem *ss_ti = new SimpleStatisticsTreeWidgetItem(ti, st_table->num_fields, fields);
+            for (int col = 0; col < (int) stu_->nfields; col++) {
+                if (stu_->fields[col].align == TAP_ALIGN_RIGHT) {
+                    ss_ti->setTextAlignment(col, Qt::AlignRight);
+                }
+            }
+        }
+    }
 }
 
 void SimpleStatisticsDialog::tapReset(void *sd_ptr)
@@ -212,10 +229,6 @@ void SimpleStatisticsDialog::tapReset(void *sd_ptr)
 
     reset_stat_table(sd->new_stat_tap_data, NULL, NULL);
     ss_dlg->statsTreeWidget()->clear();
-
-    guint table_index = 0;
-    new_stat_tap_table* st_table = g_array_index(sd->new_stat_tap_data->tables, new_stat_tap_table*, table_index);
-    ss_dlg->addSimpleStatisticsTable(st_table);
 }
 
 void SimpleStatisticsDialog::tapDraw(void *sd_ptr)
@@ -223,6 +236,8 @@ void SimpleStatisticsDialog::tapDraw(void *sd_ptr)
     new_stat_data_t *sd = (new_stat_data_t*) sd_ptr;
     SimpleStatisticsDialog *ss_dlg = static_cast<SimpleStatisticsDialog *>(sd->user_data);
     if (!ss_dlg) return;
+
+    ss_dlg->addMissingRows(sd);
 
     QTreeWidgetItemIterator it(ss_dlg->statsTreeWidget());
     while (*it) {
@@ -246,27 +261,30 @@ void SimpleStatisticsDialog::fillTree()
 
     stu_->stat_tap_init_cb(stu_, NULL, NULL);
 
-    GString *error_string = register_tap_listener(stu_->tap_name,
-                          &stat_data,
-                          displayFilter(),
-                          0,
-                          tapReset,
-                          stu_->packet_func,
-                          tapDraw);
-    if (error_string) {
-        QMessageBox::critical(this, tr("Failed to attach to tap \"%1\"").arg(stu_->tap_name),
-                             error_string->str);
-        g_string_free(error_string, TRUE);
-        free_stat_table(stu_, NULL, NULL);
-        reject();
+    QString display_filter = displayFilter();
+    if (!registerTapListener(stu_->tap_name,
+                             &stat_data,
+                             display_filter.toUtf8().constData(),
+                             0,
+                             tapReset,
+                             stu_->packet_func,
+                             tapDraw)) {
+        free_stat_tables(stu_, NULL, NULL);
+        reject(); // XXX Stay open instead?
+        return;
     }
 
-    cf_retap_packets(cap_file_.capFile());
+    cap_file_.retapPackets();
+
+    // We only have one table. Move its tree items up one level.
+    if (statsTreeWidget()->invisibleRootItem()->childCount() == 1) {
+        statsTreeWidget()->setRootIndex(statsTreeWidget()->model()->index(0, 0));
+    }
 
     tapDraw(&stat_data);
 
-    remove_tap_listener(&stat_data);
-    free_stat_table(stu_, NULL, NULL);
+    removeTapListeners();
+    free_stat_tables(stu_, NULL, NULL);
 }
 
 /*

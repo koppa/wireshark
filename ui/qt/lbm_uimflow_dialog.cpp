@@ -122,12 +122,13 @@ static gboolean lbm_uimflow_add_to_graph(seq_analysis_info_t * seq_info, packet_
         epb = stream_info->endpoint_a;
         epa = stream_info->endpoint_b;
     }
-    item = (seq_analysis_item_t *)g_malloc(sizeof(seq_analysis_item_t));
+    item = (seq_analysis_item_t *)g_malloc0(sizeof(seq_analysis_item_t));
     COPY_ADDRESS(&(item->src_addr), &(pinfo->src));
     COPY_ADDRESS(&(item->dst_addr), &(pinfo->dst));
     item->fd = pinfo->fd;
     item->port_src = pinfo->srcport;
     item->port_dst = pinfo->destport;
+    item->protocol = g_strdup(port_type_to_str(pinfo->ptype));
     if (stream_info->description == NULL)
     {
         item->frame_label = g_strdup_printf("(%" G_GUINT32_FORMAT ")", stream_info->sqn);
@@ -260,7 +261,7 @@ LBMUIMFlowDialog::LBMUIMFlowDialog(QWidget * parent, capture_file * cfile) :
     m_sequence_analysis.any_addr = TRUE;
 
     QPushButton * save_bt = m_ui->buttonBox->button(QDialogButtonBox::Save);
-    save_bt->setText(tr("Save As..."));
+    save_bt->setText(tr("Save As" UTF8_HORIZONTAL_ELLIPSIS));
 
     // XXX Use recent settings instead
     if (parent)

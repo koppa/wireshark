@@ -31,9 +31,11 @@
 #include "ui/utf8_entities.h"
 
 #include "qt_ui_utils.h"
-#include "tango_colors.h"
 
+#include "color_utils.h"
 #include "qcustomplot.h"
+#include "progress_frame.h"
+#include "stock_icon.h"
 #include "syntax_line_edit.h"
 #include "wireshark_application.h"
 
@@ -77,21 +79,7 @@ const int num_cols_ = 7;
 
 // Available colors
 // XXX - Add custom
-QList<QRgb> colors_ = QList<QRgb>()
-        << tango_aluminium_6 // Bar outline (use black instead)?
-        << tango_sky_blue_5
-        << tango_butter_6
-        << tango_chameleon_5
-        << tango_scarlet_red_5
-        << tango_plum_5
-        << tango_orange_6
-        << tango_aluminium_3
-        << tango_sky_blue_3
-        << tango_butter_3
-        << tango_chameleon_3
-        << tango_scarlet_red_3
-        << tango_plum_3
-        << tango_orange_3;
+QList<QRgb> colors_ = ColorUtils::graph_colors_;
 
 const qreal graph_line_width_ = 1.0;
 
@@ -210,7 +198,7 @@ IOGraphDialog::IOGraphDialog(QWidget &parent, CaptureFile &cf) :
     QCustomPlot *iop = ui->ioPlot;
 
     QPushButton *save_bt = ui->buttonBox->button(QDialogButtonBox::Save);
-    save_bt->setText(tr("Save As..."));
+    save_bt->setText(tr("Save As" UTF8_HORIZONTAL_ELLIPSIS));
 
     stat_timer_ = new QTimer(this);
     connect(stat_timer_, SIGNAL(timeout()), this, SLOT(updateStatistics()));
@@ -304,6 +292,8 @@ IOGraphDialog::IOGraphDialog(QWidget &parent, CaptureFile &cf) :
     gtw->setColumnWidth(yfield_col_, one_em * 6);
     gtw->setColumnWidth(sma_period_col_, one_em * 6);
 
+    ProgressFrame::addToButtonBox(ui->buttonBox, &parent);
+
     connect(wsApp, SIGNAL(focusChanged(QWidget*,QWidget*)), this, SLOT(focusChanged(QWidget*,QWidget*)));
     connect(iop, SIGNAL(mousePress(QMouseEvent*)), this, SLOT(graphClicked(QMouseEvent*)));
     connect(iop, SIGNAL(mouseMove(QMouseEvent*)), this, SLOT(mouseMoved(QMouseEvent*)));
@@ -344,6 +334,7 @@ void IOGraphDialog::addGraph(bool checked, QString name, QString dfilter, int co
     ti->setData(sma_period_col_, Qt::UserRole, moving_average);
 
     connect(this, SIGNAL(recalcGraphData(capture_file *)), iog, SLOT(recalcGraphData(capture_file *)));
+    connect(this, SIGNAL(reloadValueUnitFields()), iog, SLOT(reloadValueUnitField()));
     connect(&cap_file_, SIGNAL(captureFileClosing()), iog, SLOT(captureFileClosing()));
     connect(iog, SIGNAL(requestRetap()), this, SLOT(scheduleRetap()));
     connect(iog, SIGNAL(requestRecalc()), this, SLOT(scheduleRecalc()));
@@ -464,6 +455,11 @@ void IOGraphDialog::scheduleRetap(bool now)
 {
     need_retap_ = true;
     if (now) updateStatistics();
+}
+
+void IOGraphDialog::reloadFields()
+{
+    emit reloadValueUnitFields();
 }
 
 void IOGraphDialog::keyPressEvent(QKeyEvent *event)
@@ -618,10 +614,7 @@ void IOGraphDialog::panAxes(int x_pixels, int y_pixels)
 
 QIcon IOGraphDialog::graphColorIcon(int color_idx)
 {
-    int h = fontMetrics().height() * 3 / 4;
-    QPixmap pm(h * 2, h);
-    pm.fill(colors_[color_idx % colors_.size()]);
-    return QIcon(pm);
+    return StockIcon::colorIcon(colors_[color_idx % colors_.size()], QColor(QPalette::Mid).rgb());
 }
 
 void IOGraphDialog::toggleTracerStyle(bool force_default)
@@ -700,7 +693,7 @@ void IOGraphDialog::updateLegend()
     for (int i = 0; i < ui->graphTreeWidget->topLevelItemCount(); i++) {
         QTreeWidgetItem *ti = ui->graphTreeWidget->topLevelItem(i);
         IOGraph *iog = NULL;
-        if (ti) {
+        if (ti && ti->checkState(name_col_) == Qt::Checked) {
             iog = ti->data(name_col_, Qt::UserRole).value<IOGraph *>();
             vu_label_set.insert(iog->valueUnitLabel());
         }
@@ -723,7 +716,11 @@ void IOGraphDialog::updateLegend()
         IOGraph *iog = NULL;
         if (ti) {
             iog = ti->data(name_col_, Qt::UserRole).value<IOGraph *>();
-            iog->addToLegend();
+            if (ti->checkState(name_col_) == Qt::Checked) {
+                iog->addToLegend();
+            } else {
+                iog->removeFromLegend();
+            }
         }
     }
     iop->legend->setVisible(true);
@@ -1761,6 +1758,17 @@ bool IOGraph::addToLegend()
     return false;
 }
 
+bool IOGraph::removeFromLegend()
+{
+    if (graph_) {
+        return graph_->removeFromLegend();
+    }
+    if (bars_) {
+        return bars_->removeFromLegend();
+    }
+    return false;
+}
+
 double IOGraph::startOffset()
 {
     if (graph_ && graph_->keyAxis()->tickLabelType() == QCPAxis::ltDateTime && graph_->data()->size() > 0) {
@@ -1927,6 +1935,13 @@ void IOGraph::recalcGraphData(capture_file *cap_file)
 void IOGraph::captureFileClosing()
 {
     remove_tap_listener(this);
+}
+
+void IOGraph::reloadValueUnitField()
+{
+    if (vu_field_.length() > 0) {
+        setValueUnitField(vu_field_);
+    }
 }
 
 void IOGraph::setInterval(int interval)

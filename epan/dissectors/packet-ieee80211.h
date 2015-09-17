@@ -27,11 +27,13 @@
 
 #include "ws_symbol_export.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 WS_DLL_PUBLIC
 void capture_ieee80211 (const guchar *, int, int, packet_counts *);
 void capture_ieee80211_datapad (const guchar *, int, int, packet_counts *);
-void capture_ieee80211_fixed (const guchar *, int, int, packet_counts *);
-void capture_ieee80211_ht (const guchar *, int, int, packet_counts *);
 
 WS_DLL_PUBLIC
 void capture_prism(const guchar *, int, int, packet_counts *);
@@ -64,6 +66,13 @@ int add_tagged_field(packet_info *pinfo, proto_tree *tree,
 WS_DLL_PUBLIC const float ieee80211_float_htrates[MAX_MCS_INDEX+1][2][2];
 
 WS_DLL_PUBLIC value_string_ext ieee80211_supported_rates_vals_ext;
+
+WS_DLL_PUBLIC
+gboolean is_broadcast_bssid(const address *bssid);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
 /*
  * Extract the protocol version from the frame control field
@@ -129,7 +138,7 @@ WS_DLL_PUBLIC value_string_ext ieee80211_supported_rates_vals_ext;
  * Test bits in the flags field.
  */
 /*
- * XXX - Only HAVE_FRAGMENTS, IS_PROTECTED, and IS_STRICTLY_ORDERED
+ * XXX - Only HAVE_FRAGMENTS, IS_PROTECTED, and HAS_HT_CONTROL
  * are in use.  Should the rest be removed?
  */
 #define IS_TO_DS(x)            ((x) & FLAG_TO_DS)
@@ -139,7 +148,8 @@ WS_DLL_PUBLIC value_string_ext ieee80211_supported_rates_vals_ext;
 #define POWER_MGT_STATUS(x)    ((x) & FLAG_POWER_MGT)
 #define HAS_MORE_DATA(x)       ((x) & FLAG_MORE_DATA)
 #define IS_PROTECTED(x)        ((x) & FLAG_PROTECTED)
-#define IS_STRICTLY_ORDERED(x) ((x) & FLAG_ORDER)
+#define IS_STRICTLY_ORDERED(x) ((x) & FLAG_ORDER) /* non-QoS data frames */
+#define HAS_HT_CONTROL(x)      ((x) & FLAG_ORDER) /* management and QoS data frames */
 
 /*
  * Extract subfields from the flags field.
@@ -180,6 +190,7 @@ WS_DLL_PUBLIC value_string_ext ieee80211_supported_rates_vals_ext;
  * COMPOSE_FRAME_TYPE() values for control frames.
  * 0x160 - 0x16A are for control frame extension where type = 1 and subtype =6.
  */
+#define CTRL_BEAMFORM_RPT_POLL 0x14  /* Beamforming Report             */
 #define CTRL_VHT_NDP_ANNC      0x15  /* VHT NDP Announcement           */
 #define CTRL_POLL              0x162  /* Poll                          */
 #define CTRL_SPR               0x163  /* Service Period Request        */
@@ -225,12 +236,12 @@ WS_DLL_PUBLIC value_string_ext ieee80211_supported_rates_vals_ext;
  */
 #define EXTENSION_DMG_BEACON         0x30  /* Extension DMG beacon */
 
-struct _wlan_stats {
+typedef struct _wlan_stats {
   guint8 channel;
   guint8 ssid_len;
   guchar ssid[MAX_SSID_LEN];
   gchar protection[MAX_PROTECT_LEN];
-};
+} wlan_stats_t;
 
 typedef struct _wlan_hdr {
   address bssid;
@@ -238,7 +249,7 @@ typedef struct _wlan_hdr {
   address dst;
   guint16 type;
   struct _wlan_stats stats;
-} wlan_hdr;
+} wlan_hdr_t;
 
 #define WLANCAP_MAGIC_COOKIE_BASE 0x80211000
 #define WLANCAP_MAGIC_COOKIE_V1 0x80211001

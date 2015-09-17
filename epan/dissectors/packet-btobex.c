@@ -1115,9 +1115,9 @@ static gpointer media_type_value(packet_info *pinfo)
 
 static void btobex_profile_prompt(packet_info *pinfo _U_, gchar* result)
 {
-    gulong *value_data;
+    guint8 *value_data;
 
-    value_data = (gulong *) p_get_proto_data(pinfo->pool, pinfo, proto_btobex, PROTO_DATA_BTOBEX_PROFILE);
+    value_data = (guint8 *) p_get_proto_data(pinfo->pool, pinfo, proto_btobex, PROTO_DATA_BTOBEX_PROFILE);
     if (value_data)
         g_snprintf(result, MAX_DECODE_AS_PROMPT_LEN, "OBEX Profile 0x%04x as", (guint) *value_data);
     else
@@ -1126,9 +1126,14 @@ static void btobex_profile_prompt(packet_info *pinfo _U_, gchar* result)
 
 static gpointer btobex_profile_value(packet_info *pinfo _U_)
 {
+    guint8 *value_data;
 
-    return (gpointer)p_get_proto_data(pinfo->pool, pinfo, proto_btobex, PROTO_DATA_BTOBEX_PROFILE);
+    value_data = (guint8 *) p_get_proto_data(pinfo->pool, pinfo, proto_btobex, PROTO_DATA_BTOBEX_PROFILE);
 
+    if (value_data)
+        return GUINT_TO_POINTER((gulong)*value_data);
+
+    return NULL;
 }
 
 static void
@@ -3969,48 +3974,26 @@ proto_register_btobex(void)
 void
 proto_reg_handoff_btobex(void)
 {
-    /* register in rfcomm and l2cap the profiles/services this dissector should handle */
-    dissector_add_uint("btrfcomm.service", BTSDP_OPP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_FTP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_DIRECT_PRINTING_SERVICE_UUID,          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_REFERENCE_PRINTING_SERVICE_UUID,       btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_DIRECT_PRINTING_REF_OBJ_SERVICE_UUID,  btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_REFLECTED_UI_SERVICE_UUID,             btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BPP_STATUS_SERVICE_UUID,                   btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BIP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BIP_RESPONDER_SERVICE_UUID,                btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BIP_AUTO_ARCH_SERVICE_UUID,                btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_BIP_REF_OBJ_SERVICE_UUID,                  btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_PBAP_PCE_SERVICE_UUID,                     btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_PBAP_PSE_SERVICE_UUID,                     btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_PBAP_SERVICE_UUID,                         btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_MAP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_MAP_ACCESS_SRV_SERVICE_UUID,               btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_MAP_NOTIFICATION_SRV_SERVICE_UUID,         btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_SYNC_SERVICE_UUID,                         btobex_handle);
-    dissector_add_uint("btrfcomm.service", BTSDP_SYNC_COMMAND_SERVICE_UUID,                 btobex_handle);
-
-    dissector_add_uint("btl2cap.service",  BTSDP_OPP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_FTP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_DIRECT_PRINTING_SERVICE_UUID,          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_REFERENCE_PRINTING_SERVICE_UUID,       btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_DIRECT_PRINTING_REF_OBJ_SERVICE_UUID,  btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_REFLECTED_UI_SERVICE_UUID,             btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BPP_STATUS_SERVICE_UUID,                   btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BIP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BIP_RESPONDER_SERVICE_UUID,                btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BIP_AUTO_ARCH_SERVICE_UUID,                btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_BIP_REF_OBJ_SERVICE_UUID,                  btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_PBAP_PCE_SERVICE_UUID,                     btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_PBAP_PSE_SERVICE_UUID,                     btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_PBAP_SERVICE_UUID,                         btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_MAP_SERVICE_UUID,                          btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_MAP_ACCESS_SRV_SERVICE_UUID,               btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_MAP_NOTIFICATION_SRV_SERVICE_UUID,         btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_SYNC_SERVICE_UUID,                         btobex_handle);
-    dissector_add_uint("btl2cap.service",  BTSDP_SYNC_COMMAND_SERVICE_UUID,                 btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1104",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1105",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1106",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1107",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1118",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1119",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "111a",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "111b",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "111c",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "111d",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1120",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1121",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1122",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1123",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "112e",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "112f",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1130",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1132",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1133",  btobex_handle);
+    dissector_add_string("bluetooth.uuid",  "1134",  btobex_handle);
 
     http_handle = find_dissector("http");
     xml_handle  = find_dissector("xml");
@@ -4030,7 +4013,7 @@ proto_reg_handoff_btobex(void)
     dissector_add_uint("btobex.profile", PROFILE_SYNCML,   raw_application_parameters_handle);
     dissector_add_uint("btobex.profile", PROFILE_SYNC,     raw_application_parameters_handle);
 
-    dissector_add_for_decode_as("btrfcomm.channel", btobex_handle);
+    dissector_add_for_decode_as("btrfcomm.dlci", btobex_handle);
     dissector_add_for_decode_as("btl2cap.psm", btobex_handle);
     dissector_add_for_decode_as("btl2cap.cid", btobex_handle);
 

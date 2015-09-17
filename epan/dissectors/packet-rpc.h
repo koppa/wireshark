@@ -29,6 +29,10 @@
 #include <epan/conversation.h>
 #include "ws_symbol_export.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
 #define RPC_CALL 0
 #define RPC_REPLY 1
 
@@ -132,6 +136,9 @@ typedef struct _rpc_call_info_value {
 
 typedef int (dissect_function_t)(tvbuff_t *tvb, int offset, packet_info *pinfo, proto_tree* tree, void* data);
 
+/*
+ * Information about a particular version of a program.
+ */
 typedef struct _vsff {
 	guint32	value;
 	const gchar   *strptr;
@@ -139,16 +146,25 @@ typedef struct _vsff {
 	new_dissector_t dissect_reply;
 } vsff;
 
+typedef struct _rpc_proc_list {
+	guint vers;
+	const vsff *proc_table;
+	int *procedure_hf;
+} rpc_prog_vers_info;
+
 extern const value_string rpc_auth_flavor[];
 
-WS_DLL_PUBLIC void rpc_init_proc_table(int proto, guint prog, guint vers, const vsff *proc_table,
-    int procedure_hf);
-WS_DLL_PUBLIC void rpc_init_prog(int proto, guint32 prog, int ett);
+WS_DLL_PUBLIC void rpc_init_prog(int proto, guint32 prog, int ett, size_t nvers,
+    const rpc_prog_vers_info *versions);
 WS_DLL_PUBLIC const char *rpc_prog_name(guint32 prog);
 WS_DLL_PUBLIC const char *rpc_proc_name(guint32 prog, guint32 vers, guint32 proc);
 WS_DLL_PUBLIC int rpc_prog_hf(guint32 prog, guint32 vers);
 
 WS_DLL_PUBLIC unsigned int rpc_roundup(unsigned int a);
+WS_DLL_PUBLIC int dissect_rpc_void(tvbuff_t *tvb,
+        packet_info *pinfo, proto_tree *tree, void *data);
+WS_DLL_PUBLIC int dissect_rpc_unknown(tvbuff_t *tvb,
+        packet_info *pinfo, proto_tree *tree, void *data);
 WS_DLL_PUBLIC int dissect_rpc_bool(tvbuff_t *tvb,
 	proto_tree *tree, int hfindex, int offset);
 WS_DLL_PUBLIC int dissect_rpc_string(tvbuff_t *tvb,
@@ -191,11 +207,14 @@ typedef struct _rpc_prog_info_value {
 	int proto_id;
 	int ett;
 	const char* progname;
-	GArray *procedure_hfs;
+	GArray *procedure_hfs; /* int */
 } rpc_prog_info_value;
 
 /* rpc_progs is also used in tap. With MSVC and a
  * libwireshark.dll, we need a special declaration.
+ */
+/* Key: Program number (guint32)
+ * Value: rpc_prog_info_value *
  */
 WS_DLL_PUBLIC GHashTable *rpc_progs;
 
@@ -213,5 +232,8 @@ typedef struct rpcstat_tap_data
 	int num_procedures;
 } rpcstat_tap_data_t;
 
-#endif /* packet-rpc.h */
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
 
+#endif /* packet-rpc.h */

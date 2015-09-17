@@ -42,7 +42,7 @@ typedef enum {
     PARAM_UINT,   /* Unused? */
     PARAM_STRING, /* Unused? */
     PARAM_ENUM,   /* SCSI SRT */
-    PARAM_UUID,   /* Unused? */
+    PARAM_UUID,   /* DCE-RPC. Unused? */
     PARAM_FILTER
 } param_type;
 
@@ -84,9 +84,20 @@ typedef struct _stat_tap_table_item_type
         guint uint_value;
         gint  int_value;
         const char* string_value;
-        gfloat float_value;
+        double float_value;
         gint enum_value;
     } value;
+    /* Scratch space for the dissector. Alternatively we could also add support
+     * for hidden columns. */
+    union
+    {
+        guint uint_value;
+        gint  int_value;
+        const char* string_value;
+        double float_value;
+        gint enum_value;
+        void* ptr_value;
+    } user_data;
 } stat_tap_table_item_type;
 
 /* Possible alignments */
@@ -163,11 +174,23 @@ WS_DLL_PUBLIC new_stat_tap_table* new_stat_tap_init_table(const char *name, int 
                 const char *filter_string, new_stat_tap_gui_init_cb gui_callback, void* gui_data);
 WS_DLL_PUBLIC void new_stat_tap_add_table(new_stat_tap_ui* new_stat, new_stat_tap_table* table);
 
-WS_DLL_PUBLIC void new_stat_tap_init_table_row(new_stat_tap_table *stat_table, guint table_index, guint num_fields, stat_tap_table_item_type* fields);
+WS_DLL_PUBLIC void new_stat_tap_init_table_row(new_stat_tap_table *stat_table, guint table_index, guint num_fields, const stat_tap_table_item_type* fields);
 WS_DLL_PUBLIC stat_tap_table_item_type* new_stat_tap_get_field_data(const new_stat_tap_table *stat_table, guint table_index, guint field_index);
 WS_DLL_PUBLIC void new_stat_tap_set_field_data(new_stat_tap_table *stat_table, guint table_index, guint field_index, stat_tap_table_item_type* field_data);
 WS_DLL_PUBLIC void reset_stat_table(new_stat_tap_ui* new_stat, new_stat_tap_gui_reset_cb gui_callback, void *callback_data);
-WS_DLL_PUBLIC void free_stat_table(new_stat_tap_ui* new_stat, new_stat_tap_gui_free_cb gui_callback, void *callback_data);
+
+/** Free all of the tables associated with a new_stat_tap_ui.
+ *
+ * Frees data created by stat_tap_ui.stat_tap_init_cb.
+ * new_stat_tap_ui.stat_tap_free_table_item_cb is called for each index in each
+ * row.
+ *
+ * @param new_stat Parent new_stat_tap_ui struct, provided by the dissector.
+ * @param gui_callback Per-table callback, run before rows are removed.
+ * Provided by the UI.
+ * @param callback_data Data for the per-table callback.
+ */
+WS_DLL_PUBLIC void free_stat_tables(new_stat_tap_ui* new_stat, new_stat_tap_gui_free_cb gui_callback, void *callback_data);
 
 
 WS_DLL_PUBLIC gboolean process_stat_cmd_arg(char *optstr);

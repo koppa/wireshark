@@ -62,6 +62,7 @@ static int http_tap = -1;
 static int http_eo_tap = -1;
 
 static int proto_http = -1;
+static int proto_http2 = -1;
 static int hf_http_notification = -1;
 static int hf_http_response = -1;
 static int hf_http_request = -1;
@@ -614,22 +615,21 @@ dissect_http_kerberos(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 
 static http_conv_t *
-get_http_conversation_data(packet_info *pinfo)
+get_http_conversation_data(packet_info *pinfo, conversation_t **conversation)
 {
-	conversation_t  *conversation;
 	http_conv_t	*conv_data;
 
-	conversation = find_or_create_conversation(pinfo);
+	*conversation = find_or_create_conversation(pinfo);
 
 	/* Retrieve information from conversation
 	 * or add it if it isn't there yet
 	 */
-	conv_data = (http_conv_t *)conversation_get_proto_data(conversation, proto_http);
+	conv_data = (http_conv_t *)conversation_get_proto_data(*conversation, proto_http);
 	if(!conv_data) {
 		/* Setup the conversation structure itself */
 		conv_data = (http_conv_t *)wmem_alloc0(wmem_file_scope(), sizeof(http_conv_t));
 
-		conversation_add_proto_data(conversation, proto_http,
+		conversation_add_proto_data(*conversation, proto_http,
 					    conv_data);
 	}
 
@@ -1642,7 +1642,7 @@ basic_response_dissector(tvbuff_t *tvb, proto_tree *tree, int offset,
 
 }
 
-#if 0 /* XXX: Replaced by code creating the "Dechunked" tvb  O(N) rather tan O(N^2) */
+#if 0 /* XXX: Replaced by code creating the "Dechunked" tvb O(N) rather than O(N^2) */
 /*
  * Dissect the http data chunks and add them to the tree.
  */
@@ -1772,16 +1772,15 @@ chunked_encoding_dissector(tvbuff_t **tvb_ptr, packet_info *pinfo,
 			    1, chunk_size, "%u octets", chunk_size);
 			proto_item_set_len(chuck_size_item, chunk_offset - offset);
 
-			data_tvb = tvb_new_subset_length(tvb, chunk_offset, chunk_size);
-
-
 			/*
-			 * XXX - just use "proto_tree_add_string_format()"?
-			 * This means that, in TShark, you get
-			 * the entire chunk dumped out in hex,
-			 * in addition to whatever dissection is
-			 * done on the reassembled data.
+			 * XXX - just add the chunk's data as an item?
+			 *
+			 * Using the data dissector means that, in
+			 * TShark, you get the entire chunk dumped
+			 * out in hex, in addition to whatever
+			 * dissection is done on the reassembled data.
 			 */
+			data_tvb = tvb_new_subset_length(tvb, chunk_offset, chunk_size);
 			call_dissector(data_handle, data_tvb, pinfo,
 				    chunk_subtree);
 
@@ -1928,15 +1927,15 @@ chunked_encoding_dissector(tvbuff_t **tvb_ptr, packet_info *pinfo,
 
 			/* last-chunk does not have chunk-data CRLF. */
 			if (chunk_size > 0) {
-				data_tvb = tvb_new_subset(tvb, chunk_offset, chunk_size, datalen);
-
 				/*
-				 * XXX - just use "proto_tree_add_string_format()"?
-				 * This means that, in TShark, you get
-				 * the entire chunk dumped out in hex,
-				 * in addition to whatever dissection is
-				 * done on the reassembled data.
+				 * XXX - just add the chunk's data as an item?
+				 *
+				 * Using the data dissector means that, in
+				 * TShark, you get the entire chunk dumped
+				 * out in hex, in addition to whatever
+				 * dissection is done on the reassembled data.
 				 */
+				data_tvb = tvb_new_subset_length(tvb, chunk_offset, chunk_size);
 				call_dissector(data_handle, data_tvb, pinfo,
 					    chunk_subtree);
 
@@ -2355,9 +2354,9 @@ header_fields_initialize_cb(void)
 
 	if (header_fields_hash && hf) {
 		guint hf_size = g_hash_table_size (header_fields_hash);
-		/* Unregister all fields */
+		/* Deregister all fields */
 		for (i = 0; i < hf_size; i++) {
-			proto_unregister_field (proto_http, *(hf[i].p_id));
+			proto_deregister_field (proto_http, *(hf[i].p_id));
 			g_free (hf[i].p_id);
 		}
 		g_hash_table_destroy (header_fields_hash);
@@ -2901,12 +2900,23 @@ dissect_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 	http_conv_t	*conv_data;
 	int		offset = 0;
 	int		len;
+	conversation_t *conversation;
+	dissector_handle_t next_handle = NULL;
+
+	conv_data = get_http_conversation_data(pinfo, &conversation);
+	/* Call HTTP2 dissector directly when detected via heuristics, but not
+	 * when it was upgraded (the conversation started with HTTP). */
+	if (conversation_get_proto_data(conversation, proto_http2) &&
+	    conv_data->upgrade != UPGRADE_HTTP2) {
+		if (pinfo->can_desegment > 0)
+			pinfo->can_desegment++;
+		return call_dissector_only(http2_handle, tvb, pinfo, tree, NULL);
+	}
 
 	/*
 	 * Check if this is proxied connection and if so, hand of dissection to the
 	 * payload-dissector.
 	 * Response code 200 means "OK" and strncmp() == 0 means the strings match exactly */
-	conv_data = get_http_conversation_data(pinfo);
 	if(pinfo->fd->num >= conv_data->startframe &&
 	   conv_data->response_code == 200 &&
 	   conv_data->request_method &&
@@ -2918,18 +2928,15 @@ dissect_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 	} else {
 		while (tvb_reported_length_remaining(tvb, offset) > 0) {
 			if (conv_data->upgrade == UPGRADE_WEBSOCKET && pinfo->fd->num >= conv_data->startframe) {
-				/* Websockets is a stream of data, preserve
-				 * desegmentation functionality. */
-				if (pinfo->can_desegment > 0)
-					pinfo->can_desegment++;
-				call_dissector_only(websocket_handle, tvb_new_subset_remaining(tvb, offset), pinfo, tree, NULL);
-				break;
+				next_handle = websocket_handle;
 			}
 			if (conv_data->upgrade == UPGRADE_HTTP2 && pinfo->fd->num >= conv_data->startframe) {
-				call_dissector_only(http2_handle, tvb_new_subset_remaining(tvb, offset), pinfo, tree, NULL);
-				break;
+				next_handle = http2_handle;
 			}
 			if (conv_data->upgrade == UPGRADE_SSTP && conv_data->response_code == 200 && pinfo->fd->num >= conv_data->startframe) {
+				next_handle = sstp_handle;
+			}
+			if (next_handle) {
 				/* Increase pinfo->can_desegment because we are traversing
 				 * http and want to preserve desegmentation functionality for
 				 * the proxied protocol
@@ -2937,7 +2944,7 @@ dissect_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 				if (pinfo->can_desegment > 0)
 					pinfo->can_desegment++;
 
-				call_dissector_only(sstp_handle, tvb_new_subset_remaining(tvb, offset), pinfo, tree, NULL);
+				call_dissector_only(next_handle, tvb_new_subset_remaining(tvb, offset), pinfo, tree, NULL);
 				break;
 			}
 			len = dissect_http_message(tvb, offset, pinfo, tree, conv_data);
@@ -2989,9 +2996,10 @@ dissect_http_heur_tcp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void 
 static void
 dissect_http_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
+	conversation_t  *conversation;
 	http_conv_t	*conv_data;
 
-	conv_data = get_http_conversation_data(pinfo);
+	conv_data = get_http_conversation_data(pinfo, &conversation);
 	dissect_http_message(tvb, 0, pinfo, tree, conv_data);
 }
 
@@ -3518,8 +3526,9 @@ proto_reg_handoff_message_http(void)
 
 	dissector_add_string("media_type", "message/http", message_http_handle);
 
-	heur_dissector_add("tcp", dissect_http_heur_tcp, proto_http);
+	heur_dissector_add("tcp", dissect_http_heur_tcp, "HTTP over TCP", "http_tcp", proto_http, HEURISTIC_ENABLE);
 
+	proto_http2 = proto_get_id_by_filter_name("http2");
 
 	reinit_http();
 }

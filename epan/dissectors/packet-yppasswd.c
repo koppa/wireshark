@@ -84,10 +84,9 @@ dissect_yppasswd_reply(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 }
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 static const vsff yppasswd1_proc[] = {
 	{ YPPASSWDPROC_NULL,	"NULL",
-		NULL,		NULL },
+		dissect_rpc_void,	dissect_rpc_void },
 	{ YPPASSWDPROC_UPDATE,	"UPDATE",
 		dissect_yppasswd_call,	dissect_yppasswd_reply },
 	{ 0,	NULL,		NULL,				NULL }
@@ -96,6 +95,10 @@ static const value_string yppasswd1_proc_vals[] = {
 	{ YPPASSWDPROC_NULL,	"NULL" },
 	{ YPPASSWDPROC_UPDATE,	"UPDATE" },
 	{ 0,	NULL }
+};
+
+static const rpc_prog_vers_info yppasswd_vers_info[] = {
+	{ 1, yppasswd1_proc, &hf_yppasswd_procedure_v1 },
 };
 
 void
@@ -162,9 +165,8 @@ void
 proto_reg_handoff_yppasswd(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_yppasswd, YPPASSWD_PROGRAM, ett_yppasswd);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_yppasswd, YPPASSWD_PROGRAM, 1, yppasswd1_proc, hf_yppasswd_procedure_v1);
+	rpc_init_prog(proto_yppasswd, YPPASSWD_PROGRAM, ett_yppasswd,
+	    G_N_ELEMENTS(yppasswd_vers_info), yppasswd_vers_info);
 }
 
 /*

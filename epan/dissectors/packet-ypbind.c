@@ -132,11 +132,11 @@ dissect_ypbind_setdomain_v2_request(tvbuff_t *tvb, packet_info *pinfo _U_, proto
 
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 static const vsff ypbind1_proc[] = {
-	{ YPBINDPROC_NULL,	"NULL",		NULL,	NULL },
-	{ YPBINDPROC_DOMAIN,	"DOMAIN",	NULL,	NULL },
-	{ YPBINDPROC_SETDOM,	"SETDOMAIN",	NULL,	NULL },
+	{ YPBINDPROC_NULL,	"NULL",
+		dissect_rpc_void,	dissect_rpc_void },
+	{ YPBINDPROC_DOMAIN,	"DOMAIN",	dissect_rpc_unknown,	dissect_rpc_unknown },
+	{ YPBINDPROC_SETDOM,	"SETDOMAIN",	dissect_rpc_unknown,	dissect_rpc_unknown },
 	{ 0,			NULL,		NULL,	NULL }
 };
 static const value_string ypbind1_proc_vals[] = {
@@ -148,11 +148,12 @@ static const value_string ypbind1_proc_vals[] = {
 /* end of YPBind version 1 */
 
 static const vsff ypbind2_proc[] = {
-	{ YPBINDPROC_NULL,	"NULL",		NULL,	NULL },
+	{ YPBINDPROC_NULL,	"NULL",
+		dissect_rpc_void,	dissect_rpc_void },
 	{ YPBINDPROC_DOMAIN,	"DOMAIN",
 		dissect_ypbind_domain_v2_request, dissect_ypbind_domain_v2_reply},
 	{ YPBINDPROC_SETDOM,	"SETDOMAIN",
-		dissect_ypbind_setdomain_v2_request, NULL},
+		dissect_ypbind_setdomain_v2_request, dissect_rpc_void },
 	{ 0,    		NULL,       	NULL,	NULL }
 };
 static const value_string ypbind2_proc_vals[] = {
@@ -163,6 +164,11 @@ static const value_string ypbind2_proc_vals[] = {
 };
 /* end of YPBind version 2 */
 
+
+static const rpc_prog_vers_info ypbind_vers_info[] = {
+	{ 1, ypbind1_proc, &hf_ypbind_procedure_v1 },
+	{ 2, ypbind2_proc, &hf_ypbind_procedure_v2 },
+};
 
 void
 proto_register_ypbind(void)
@@ -215,10 +221,8 @@ void
 proto_reg_handoff_ypbind(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_ypbind, YPBIND_PROGRAM, ett_ypbind);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_ypbind, YPBIND_PROGRAM, 1, ypbind1_proc, hf_ypbind_procedure_v1);
-	rpc_init_proc_table(proto_ypbind, YPBIND_PROGRAM, 2, ypbind2_proc, hf_ypbind_procedure_v2);
+	rpc_init_prog(proto_ypbind, YPBIND_PROGRAM, ett_ypbind,
+	    G_N_ELEMENTS(ypbind_vers_info), ypbind_vers_info);
 }
 
 /*

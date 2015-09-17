@@ -29,6 +29,10 @@
 #include "ui/utf8_entities.h"
 #include "tango_colors.h"
 
+#ifdef HAVE_LUA
+#include "epan/wslua/init_wslua.h"
+#endif
+
 // Uncomment to slow the update progress
 //#define THROTTLE_STARTUP 1
 
@@ -49,14 +53,11 @@ SplashOverlay::SplashOverlay(QWidget *parent) :
 {
     so_ui_->setupUi(this);
 
-    /* additional 6 for:
-     * dissectors, listeners,
-     * registering plugins, handingoff plugins,
-     * preferences and configuration
-     */
-    int register_add = 6;
+    // Number of register action transitions (e.g. RA_NONE -> RA_DISSECTORS,
+    // RA_DISSECTORS -> RA_PLUGIN_REGISTER) minus two.
+    int register_add = 4;
 #ifdef HAVE_LUA
-      register_add++;   /* additional one for lua plugins */
+      register_add += wslua_count_plugins();   /* get count of lua plugins */
 #endif
     so_ui_->progressBar->setMaximum((int)register_count() + register_add);
     time_.start();
@@ -83,7 +84,7 @@ SplashOverlay::SplashOverlay(QWidget *parent) :
 
 #ifndef THROTTLE_STARTUP
     // Check for a remote connection
-    if (strlen (get_conn_cfilter()) > 0)
+    if (display_is_remote())
         info_update_freq_ = 1000;
 #endif
 
@@ -114,11 +115,11 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
     QString action_msg = UTF8_HORIZONTAL_ELLIPSIS;
 
 #ifdef THROTTLE_STARTUP
-    ThrottleThread::msleep(100);
+    ThrottleThread::msleep(10);
 #endif
 
     register_cur_++;
-    if (last_action_ == action && time_.elapsed() < info_update_freq_ && register_cur_ < so_ui_->progressBar->maximum()) {
+    if (last_action_ == action && time_.elapsed() < info_update_freq_ && register_cur_ != so_ui_->progressBar->maximum()) {
       /* Only update every splash_register_freq milliseconds */
       return;
     }
@@ -146,6 +147,9 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
     case RA_LUA_PLUGINS:
         action_msg = tr("Loading Lua plugins");
         break;
+    case RA_LUA_DEREGISTER:
+        action_msg = tr("Removing Lua plugins");
+        break;
     case RA_PREFERENCES:
         action_msg = tr("Loading module preferences");
         break;
@@ -166,11 +170,9 @@ void SplashOverlay::splashUpdate(register_action_e action, const char *message)
     }
     so_ui_->actionLabel->setText(action_msg);
 
-    register_cur_++;
     so_ui_->progressBar->setValue(register_cur_);
 
     wsApp->processEvents();
-
     time_.restart();
 }
 

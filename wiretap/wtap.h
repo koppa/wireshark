@@ -365,6 +365,7 @@ extern "C" {
 #define WTAP_TSPREC_MSEC        3
 #define WTAP_TSPREC_USEC        6
 #define WTAP_TSPREC_NSEC        9
+/* if you add to the above, update wtap_tsprec_string() */
 
 /*
  * Maximum packet size we'll support.
@@ -570,6 +571,7 @@ struct p2p_phdr {
 #define PHDR_802_11_PHY_11G            6 /* 802.11g */
 #define PHDR_802_11_PHY_11N            7 /* 802.11n */
 #define PHDR_802_11_PHY_11AC           8 /* 802.11ac */
+#define PHDR_802_11_PHY_11AD           9 /* 802.11ad */
 
 /*
  * PHY-specific information.
@@ -736,7 +738,7 @@ struct ieee_802_11ac {
 };
 
 /*
- * Presence flags.
+ * 802.11ac presence flags.
  */
 #define PHDR_802_11AC_HAS_STBC                    0x00000001 /* stbc */
 #define PHDR_802_11AC_HAS_TXOP_PS_NOT_ALLOWED     0x00000002 /* txop_ps_not_allowed */
@@ -748,6 +750,30 @@ struct ieee_802_11ac {
 #define PHDR_802_11AC_HAS_FEC                     0x00000080 /* fec */
 #define PHDR_802_11AC_HAS_GROUP_ID                0x00000100 /* group_id */
 #define PHDR_802_11AC_HAS_PARTIAL_AID             0x00000200 /* partial_aid */
+
+/*
+ * 802.11ad.
+ */
+
+/*
+ * Min and Max frequencies for 802.11ad and a macro for checking for 802.11ad.
+ */
+
+#define PHDR_802_11AD_MIN_FREQUENCY    57000
+#define PHDR_802_11AD_MAX_FREQUENCY    66000
+
+#define IS_80211AD(frequency) (((frequency) >= PHDR_802_11AD_MIN_FREQUENCY) &&\
+                               ((frequency) <= PHDR_802_11AD_MAX_FREQUENCY))
+
+struct ieee_802_11ad {
+    guint32 presence_flags; /* Which of this information is present? */
+    guint8  mcs;            /* MCS index */
+};
+
+/*
+ * 802.11ad presence flags.
+ */
+#define PHDR_802_11AD_HAS_MCS_INDEX               0x00000001 /* mcs */
 
 struct ieee_802_11_phdr {
     gint     fcs_len;        /* Number of bytes of FCS - -1 means "unknown" */
@@ -761,6 +787,7 @@ struct ieee_802_11_phdr {
         struct ieee_802_11g info_11g;
         struct ieee_802_11n info_11n;
         struct ieee_802_11ac info_11ac;
+        struct ieee_802_11ad info_11ad;
     } phy_info;
     guint32  presence_flags; /* Flags indicating presence of fields below */
     guint16  channel;        /* Channel number */
@@ -1222,6 +1249,9 @@ typedef struct wtapng_section_s {
                                          *     following section.
                                          *     Section Length equal -1 (0xFFFFFFFFFFFFFFFF) means
                                          *     that the size of the section is not specified
+                                         *   Note: if writing to a new file, this length will
+                                         *     be invalid if anything changes, such as the other
+                                         *     members of this struct, or the packets written.
                                          */
     /* options */
     gchar               *opt_comment;   /**< NULL if not available */
@@ -1232,7 +1262,7 @@ typedef struct wtapng_section_s {
     gchar               *shb_os;        /**< NULL if not available, UTF-8 string containing the
                                          *     name of the operating system used to create this section.
                                          */
-    gchar         *shb_user_appl;       /**< NULL if not available, UTF-8 string containing the
+    gchar               *shb_user_appl; /**< NULL if not available, UTF-8 string containing the
                                          *     name of the application used to create this section.
                                          */
 } wtapng_section_t;
@@ -1394,6 +1424,14 @@ typedef struct wtapng_if_stats_s {
     guint64  isb_osdrop;
     guint64  isb_usrdeliv;
 } wtapng_if_stats_t;
+
+
+/* Name Resolution, pcap-ng Name Resolution Block (NRB). */
+typedef struct wtapng_name_res_s {
+    /* options */
+    gchar  *opt_comment;    /**< NULL if not available */
+    /* XXX */
+} wtapng_name_res_t;
 
 
 /** A struct with lists of resolved addresses.
@@ -1651,12 +1689,151 @@ WS_DLL_PUBLIC
 int wtap_file_encap(wtap *wth);
 WS_DLL_PUBLIC
 int wtap_file_tsprec(wtap *wth);
+
+/**
+ * @brief Gets existing section header block, not for new file.
+ * @details Returns the pointer to the existing SHB, without creating a
+ *          new one. This should only be used for accessing info, not
+ *          for creating a new file based on existing SHB info. Use
+ *          wtap_file_get_shb_for_new_file() for that.
+ *
+ * @param wth The wiretap session.
+ * @return The existing section header, which must NOT be g_free'd.
+ */
 WS_DLL_PUBLIC
-wtapng_section_t* wtap_file_get_shb_info(wtap *wth);
+const wtapng_section_t* wtap_file_get_shb(wtap *wth);
+
+/**
+ * @brief Gets new section header block for new file, based on existing info.
+ * @details Creates a new wtapng_section_t section header block and only
+ *          copies appropriate members of the SHB for a new file. In
+ *          particular, the comment string is copied, and any custom options
+ *          which should be copied are copied. The os, hardware, and
+ *          application strings are *not* copied.
+ *
+ * @note Use wtap_free_shb() to free the returned section header.
+ *
+ * @param wth The wiretap session.
+ * @return The new section header, which must be wtap_free_shb'd.
+ */
 WS_DLL_PUBLIC
-wtapng_iface_descriptions_t *wtap_file_get_idb_info(wtap *wth);
+wtapng_section_t* wtap_file_get_shb_for_new_file(wtap *wth);
+
+/**
+ * Free's a section header block and all of its members.
+ */
+WS_DLL_PUBLIC
+void wtap_free_shb(wtapng_section_t *shb_hdr);
+
+/**
+ * @brief Gets the section header comment string.
+ * @details This gets the pointer, without duplicating the string.
+ *
+ * @param wth The wtap session.
+ * @return The comment string.
+ */
+WS_DLL_PUBLIC
+const gchar* wtap_file_get_shb_comment(wtap *wth);
+
+/**
+ * @brief Sets or replaces the section header comment.
+ * @details The passed-in comment string is set to be the comment
+ *          for the section header block. The passed-in string's
+ *          ownership will be owned by the block, so it should be
+ *          duplicated before passing into this function.
+ *
+ * @param wth The wiretap session.
+ * @param comment The comment string.
+ */
 WS_DLL_PUBLIC
 void wtap_write_shb_comment(wtap *wth, gchar *comment);
+
+/**
+ * @brief Gets existing interface descriptions.
+ * @details Returns a new struct containing a pointer to the existing
+ *          description, without creating new descriptions internally.
+ * @note The returned pointer must be g_free'd, but its internal
+ *       interface_data must not.
+ *
+ * @param wth The wiretap session.
+ * @return A new struct of the existing section descriptions, which must be g_free'd.
+ */
+WS_DLL_PUBLIC
+wtapng_iface_descriptions_t *wtap_file_get_idb_info(wtap *wth);
+
+/**
+ * @brief Free's a interface description block and all of its members.
+ *
+ * @details This free's all of the interface descriptions inside the passed-in
+ *     struct, including their members (e.g., comments); and then free's the
+ *     passed-in struct as well.
+ *
+ * @warning Do not use this for the struct returned by
+ *     wtap_file_get_idb_info(), as that one did not create the internal
+ *     interface descriptions; for that case you can simply g_free() the new
+ *     struct.
+ */
+WS_DLL_PUBLIC
+void wtap_free_idb_info(wtapng_iface_descriptions_t *idb_info);
+
+/**
+ * @brief Gets a debug string of an interface description.
+ * @details Returns a newly allocated string of debug information about
+ *          the given interface descrption, useful for debugging.
+ * @note The returned pointer must be g_free'd.
+ *
+ * @param if_descr The interface description.
+ * @param indent Number of spaces to indent each line by.
+ * @param line_end A string to append to each line (e.g., "\n" or ", ").
+ * @return A newly allocated gcahr array string, which must be g_free'd.
+ */
+WS_DLL_PUBLIC
+gchar *wtap_get_debug_if_descr(const wtapng_if_descr_t *if_descr,
+                               const int indent,
+                               const char* line_end);
+
+/**
+ * @brief Gets new name resolution info for new file, based on existing info.
+ * @details Creates a new wtapng_name_res_t name resolution info and only
+ *          copies appropriate members for a new file.
+ *
+ * @note Use wtap_free_nrb() to free the returned pointer.
+ *
+ * @param wth The wiretap session.
+ * @return The new name resolution info, which must be wtap_free_nrb'd.
+ */
+WS_DLL_PUBLIC
+wtapng_name_res_t* wtap_file_get_nrb_for_new_file(wtap *wth);
+
+/**
+ * Free's the name resolution info and all of its members.
+ */
+WS_DLL_PUBLIC
+void wtap_free_nrb(wtapng_name_res_t *nrb_hdr);
+
+/**
+ * @brief Gets the name resolution comment, if any.
+ * @details This retrieves the name resolution comment string pointer,
+ *          possibly NULL.
+ *
+ * @param wth The wiretap session.
+ * @return The comment string.
+ */
+WS_DLL_PUBLIC
+const gchar* wtap_get_nrb_comment(wtap *wth);
+
+/**
+ * @brief Sets or replaces the name resolution comment.
+ * @details The passed-in comment string is set to be the comment
+ *          for the name resolution block. The passed-in string's
+ *          ownership will be owned by the block, so it should be
+ *          duplicated before passing into this function.
+ *
+ * @param wth The wiretap session.
+ * @param comment The comment string.
+ */
+WS_DLL_PUBLIC
+void wtap_write_nrb_comment(wtap *wth, gchar *comment);
 
 /*** close the file descriptors for the current file ***/
 WS_DLL_PUBLIC
@@ -1705,20 +1882,57 @@ WS_DLL_PUBLIC
 gboolean wtap_dump_supports_comment_types(int filetype, guint32 comment_types);
 
 WS_DLL_PUBLIC
-wtap_dumper* wtap_dump_open(const char *filename, int filetype, int encap,
+wtap_dumper* wtap_dump_open(const char *filename, int file_type_subtype, int encap,
     int snaplen, gboolean compressed, int *err);
 
+/**
+ * @brief Opens a new capture file for writing.
+ *
+ * @note The shb_hdr, idb_inf, and nrb_hdr arguments will be used until
+ *     wtap_dump_close() is called, but will not be free'd by the dumper. If
+ *     you created them, you must free them yourself after wtap_dump_close().
+ *
+ * @param filename The new file's name.
+ * @param file_type_subtype The WTAP_FILE_TYPE_SUBTYPE_XXX file type.
+ * @param encap The WTAP_ENCAP_XXX encapsulation type (WTAP_ENCAP_PER_PACKET for multi)
+ * @param snaplen The maximum packet capture length.
+ * @param compressed True if file should be compressed.
+ * @param shb_hdr The section header block information, or NULL.
+ * @param idb_inf The interface description information, or NULL.
+ * @param nrb_hdr The name resolution comment/custom_opts information, or NULL.
+ * @param[out] err Will be set to an error code on failure.
+ * @return The newly created dumper object, or NULL on failure.
+ */
 WS_DLL_PUBLIC
-wtap_dumper* wtap_dump_open_ng(const char *filename, int filetype, int encap,
-    int snaplen, gboolean compressed, wtapng_section_t *shb_hdr, wtapng_iface_descriptions_t *idb_inf, int *err);
+wtap_dumper* wtap_dump_open_ng(const char *filename, int file_type_subtype, int encap,
+    int snaplen, gboolean compressed, wtapng_section_t *shb_hdr, wtapng_iface_descriptions_t *idb_inf,
+    wtapng_name_res_t *nrb_hdr, int *err);
 
 WS_DLL_PUBLIC
-wtap_dumper* wtap_dump_fdopen(int fd, int filetype, int encap, int snaplen,
+wtap_dumper* wtap_dump_fdopen(int fd, int file_type_subtype, int encap, int snaplen,
     gboolean compressed, int *err);
 
+/**
+ * @brief Creates a dumper for an existing file descriptor.
+ *
+ * @note The shb_hdr, idb_inf, and nrb_hdr arguments will be used until
+ *     wtap_dump_close() is called, but will not be free'd by the dumper. If
+ *     you created them, you must free them yourself after wtap_dump_close().
+ *
+ * @param file_type_subtype The WTAP_FILE_TYPE_SUBTYPE_XXX file type.
+ * @param encap The WTAP_ENCAP_XXX encapsulation type (WTAP_ENCAP_PER_PACKET for multi)
+ * @param snaplen The maximum packet capture length.
+ * @param compressed True if file should be compressed.
+ * @param shb_hdr The section header block information, or NULL.
+ * @param idb_inf The interface description information, or NULL.
+ * @param nrb_hdr The name resolution comment/custom_opts information, or NULL.
+ * @param[out] err Will be set to an error code on failure.
+ * @return The newly created dumper object, or NULL on failure.
+ */
 WS_DLL_PUBLIC
-wtap_dumper* wtap_dump_fdopen_ng(int fd, int filetype, int encap, int snaplen,
-                gboolean compressed, wtapng_section_t *shb_hdr, wtapng_iface_descriptions_t *idb_inf, int *err);
+wtap_dumper* wtap_dump_fdopen_ng(int fd, int file_type_subtype, int encap, int snaplen,
+                gboolean compressed, wtapng_section_t *shb_hdr, wtapng_iface_descriptions_t *idb_inf,
+                wtapng_name_res_t *nrb_hdr, int *err);
 
 
 WS_DLL_PUBLIC
@@ -1776,6 +1990,9 @@ WS_DLL_PUBLIC
 const char *wtap_encap_short_string(int encap);
 WS_DLL_PUBLIC
 int wtap_short_string_to_encap(const char *short_name);
+
+WS_DLL_PUBLIC
+const char* wtap_tsprec_string(int tsprec);
 
 WS_DLL_PUBLIC
 const char *wtap_strerror(int err);

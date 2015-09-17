@@ -48,6 +48,7 @@
 #include <epan/stream.h>
 #include <epan/expert.h>
 #include <epan/range.h>
+#include <epan/asm_utils.h>
 
 static gint proto_malformed = -1;
 static dissector_handle_t frame_handle = NULL;
@@ -110,6 +111,9 @@ struct heur_dissector_list {
 
 static GHashTable *heur_dissector_lists = NULL;
 
+/* Name hashtables for fast detection of duplicate names */
+static GHashTable* heuristic_short_names  = NULL;
+
 static void
 destroy_heuristic_dissector_entry(gpointer data, gpointer user_data _U_)
 {
@@ -149,6 +153,8 @@ packet_init(void)
 
 	heur_dissector_lists = g_hash_table_new_full(g_str_hash, g_str_equal,
 			NULL, destroy_heuristic_dissector_list);
+
+	heuristic_short_names  = g_hash_table_new(wrs_str_hash, g_str_equal);
 }
 
 void
@@ -173,6 +179,7 @@ packet_cleanup(void)
 	g_hash_table_destroy(dissector_tables);
 	g_hash_table_destroy(registered_dissectors);
 	g_hash_table_destroy(heur_dissector_lists);
+	g_hash_table_destroy(heuristic_short_names);
 }
 
 /*
@@ -265,7 +272,7 @@ cleanup_dissection(void)
 	/* Cleanup the stream-handling tables */
 	stream_cleanup();
 
-	/* Initialize the expert infos */
+	/* Cleanup the expert infos */
 	expert_packet_cleanup();
 
 	wmem_leave_file_scope();
@@ -1014,6 +1021,14 @@ dissector_delete_all_check (gpointer key _U_, gpointer value, gpointer user_data
 	dtbl_entry_t *dtbl_entry = (dtbl_entry_t *) value;
 	dissector_handle_t handle = (dissector_handle_t) user_data;
 
+	if (!dtbl_entry->current->protocol) {
+		/*
+		 * Not all dissectors are registered with a protocol, so we need this
+		 * check when running from dissector_delete_from_all_tables.
+		 */
+		return FALSE;
+	}
+
 	return (proto_get_id (dtbl_entry->current->protocol) == proto_get_id (handle->protocol));
 }
 
@@ -1024,6 +1039,23 @@ void dissector_delete_all(const char *name, dissector_handle_t handle)
 	g_assert (sub_dissectors);
 
 	g_hash_table_foreach_remove (sub_dissectors->hash_table, dissector_delete_all_check, handle);
+}
+
+static void
+dissector_delete_from_table(gpointer key _U_, gpointer value, gpointer user_data)
+{
+	dissector_table_t sub_dissectors = (dissector_table_t) value;
+	g_assert (sub_dissectors);
+
+	g_hash_table_foreach_remove(sub_dissectors->hash_table, dissector_delete_all_check, user_data);
+	sub_dissectors->dissector_handles = g_slist_remove(sub_dissectors->dissector_handles, user_data);
+}
+
+/* Delete handle from all tables and dissector_handles lists */
+static void
+dissector_delete_from_all_tables(dissector_handle_t handle)
+{
+	g_hash_table_foreach(dissector_tables, dissector_delete_from_table, handle);
 }
 
 /* Change the entry for a dissector in a uint dissector table
@@ -1452,6 +1484,7 @@ dissector_get_string_handle(dissector_table_t sub_dissectors,
 {
 	dtbl_entry_t *dtbl_entry;
 
+	if (!string) return 0;
 	dtbl_entry = find_string_dtbl_entry(sub_dissectors, string);
 	if (dtbl_entry != NULL)
 		return dtbl_entry->current;
@@ -1462,8 +1495,10 @@ dissector_get_string_handle(dissector_table_t sub_dissectors,
 dissector_handle_t
 dissector_get_default_string_handle(const char *name, const gchar *string)
 {
-	dissector_table_t sub_dissectors = find_dissector_table(name);
+	dissector_table_t sub_dissectors;
 
+	if (!string) return 0;
+	sub_dissectors = find_dissector_table(name);
 	if (sub_dissectors != NULL) {
 		dtbl_entry_t *dtbl_entry = find_string_dtbl_entry(sub_dissectors, string);
 		if (dtbl_entry != NULL)
@@ -1917,6 +1952,15 @@ dissector_table_t register_custom_dissector_table(const char *name,
 	return sub_dissectors;
 }
 
+void
+deregister_dissector_table(const char *name)
+{
+	dissector_table_t sub_dissectors = find_dissector_table(name);
+	if (!sub_dissectors) return;
+
+	g_hash_table_remove(dissector_tables, (gpointer)name);
+}
+
 const char *
 get_dissector_table_ui_name(const char *name)
 {
@@ -1956,30 +2000,19 @@ has_heur_dissector_list(const gchar *name) {
 	return (find_heur_dissector_list(name) != NULL);
 }
 
-
-static int
-find_matching_heur_dissector_by_short_name(gconstpointer a, gconstpointer b) {
-    const gchar *str_a = proto_get_protocol_short_name(((const heur_dtbl_entry_t *)a)->protocol);
-    const gchar *str_b = (const gchar*)b;
-
-    return strcmp(str_a, str_b);
-}
-
-heur_dtbl_entry_t*
-find_heur_dissector_by_short_name(heur_dissector_list_t heur_list, const char *short_name)
+heur_dtbl_entry_t* find_heur_dissector_by_unique_short_name(const char *short_name)
 {
-    GSList *found_entry = g_slist_find_custom(heur_list->dissectors,
-                                              (gpointer) short_name,
-                                              find_matching_heur_dissector_by_short_name);
-    return found_entry ? (heur_dtbl_entry_t *)(found_entry->data) : NULL;
+	return (heur_dtbl_entry_t*)g_hash_table_lookup(heuristic_short_names, (gpointer)short_name);
 }
 
 void
-heur_dissector_add(const char *name, heur_dissector_t dissector, const int proto)
+heur_dissector_add(const char *name, heur_dissector_t dissector, const char *display_name, const char *short_name, const int proto, heuristic_enable_e enable)
 {
 	heur_dissector_list_t  sub_dissectors = find_heur_dissector_list(name);
 	const char            *proto_name;
 	heur_dtbl_entry_t     *hdtbl_entry;
+	guint                  i, list_size;
+	GSList                *list_entry;
 
 	/*
 	 * Make sure the dissector table exists.
@@ -1997,17 +2030,48 @@ heur_dissector_add(const char *name, heur_dissector_t dissector, const int proto
 		return;
 	}
 
-	/* XXX: Should verify that sub-dissector is not already in the list ? */
+	/* Verify that sub-dissector is not already in the list */
+	list_size = g_slist_length(sub_dissectors->dissectors);
+	for (i = 0; i < list_size; i++)
+	{
+		list_entry = g_slist_nth(sub_dissectors->dissectors, i);
+		hdtbl_entry = (heur_dtbl_entry_t *)list_entry->data;
+		if ((hdtbl_entry->dissector == dissector) &&
+			(hdtbl_entry->protocol == find_protocol_by_id(proto)))
+		{
+			proto_name = proto_get_protocol_name(proto);
+			if (proto_name != NULL) {
+				fprintf(stderr, "Protocol %s is already registered in \"%s\" table\n",
+				    proto_name, name);
+			}
+			if (getenv("WIRESHARK_ABORT_ON_DISSECTOR_BUG") != NULL)
+				abort();
+			return;
+		}
+	}
+
+	/* Ensure short_name is unique */
+	if (g_hash_table_lookup(heuristic_short_names, (gpointer)short_name) != NULL) {
+		g_error("Duplicate heuristic short_name \"%s\"!"
+			" This might be caused by an inappropriate plugin or a development error.", short_name);
+	}
 
 	hdtbl_entry = g_slice_new(heur_dtbl_entry_t);
 	hdtbl_entry->dissector = dissector;
 	hdtbl_entry->protocol  = find_protocol_by_id(proto);
+	hdtbl_entry->display_name = display_name;
+	hdtbl_entry->short_name = short_name;
 	hdtbl_entry->list_name = g_strdup(name);
-	hdtbl_entry->enabled   = TRUE;
+	hdtbl_entry->enabled   = (enable == HEURISTIC_ENABLE);
 
 	/* do the table insertion */
+	g_hash_table_insert(heuristic_short_names, (gpointer)short_name, hdtbl_entry);
+
 	sub_dissectors->dissectors = g_slist_prepend(sub_dissectors->dissectors,
 	    (gpointer)hdtbl_entry);
+
+	/* XXX - could be optimized to pass hdtbl_entry directly */
+	proto_add_heuristic_dissector(hdtbl_entry->protocol, short_name);
 }
 
 
@@ -2398,6 +2462,7 @@ create_dissector_handle(dissector_t dissector, const int proto)
 	return handle;
 }
 
+/* Create an anonymous handle for a new dissector. */
 dissector_handle_t
 new_create_dissector_handle(new_dissector_t dissector, const int proto)
 {
@@ -2426,6 +2491,17 @@ dissector_handle_t new_create_dissector_handle_with_name(new_dissector_t dissect
 	return handle;
 }
 
+/* Destroy an anonymous handle for a dissector. */
+void
+destroy_dissector_handle(dissector_handle_t handle)
+{
+	if (handle == NULL) return;
+
+	dissector_delete_from_all_tables(handle);
+	deregister_postdissector(handle);
+	wmem_free(wmem_epan_scope(), handle);
+}
+
 /* Register a dissector by name. */
 dissector_handle_t
 register_dissector(const char *name, dissector_t dissector, const int proto)
@@ -2447,6 +2523,7 @@ register_dissector(const char *name, dissector_t dissector, const int proto)
 	return handle;
 }
 
+/* Register a new dissector by name. */
 dissector_handle_t
 new_register_dissector(const char *name, new_dissector_t dissector, const int proto)
 {
@@ -2465,6 +2542,19 @@ new_register_dissector(const char *name, new_dissector_t dissector, const int pr
 			    (gpointer) handle);
 
 	return handle;
+}
+
+/* Deregister a dissector by name. */
+void
+deregister_dissector(const char *name)
+{
+	dissector_handle_t handle = find_dissector(name);
+	if (handle == NULL) return;
+
+	g_hash_table_remove(registered_dissectors, (gpointer)name);
+	g_hash_table_remove(heur_dissector_lists, (gpointer)name);
+
+	destroy_dissector_handle(handle);
 }
 
 /* Call a dissector through a handle but if the dissector rejected it
@@ -2711,6 +2801,16 @@ register_postdissector(dissector_handle_t handle)
 
 	g_ptr_array_add(post_dissectors, handle);
 	num_of_postdissectors++;
+}
+
+void
+deregister_postdissector(dissector_handle_t handle)
+{
+    if (!post_dissectors) return;
+
+    if (g_ptr_array_remove(post_dissectors, handle)) {
+        num_of_postdissectors--;
+    }
 }
 
 gboolean

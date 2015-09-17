@@ -28,8 +28,8 @@
 
 #include "capchild/capture_session.h"
 
-#include "capture_file_progress_frame.h"
 #include "label_stack.h"
+#include "progress_frame.h"
 #include "wireshark_application.h"
 
 #include <QLabel>
@@ -44,7 +44,7 @@ class MainStatusBar : public QStatusBar
 public:
     explicit MainStatusBar(QWidget *parent = 0);
     void showExpert();
-    void hideExpert();
+    void captureFileClosing();
     void expertUpdate();
     void setFileName(CaptureFile &cf);
 
@@ -52,7 +52,7 @@ private:
     QLabel expert_status_;
     QLabel comment_label_;
     LabelStack info_status_;
-    CaptureFileProgressFrame progress_frame_;
+    ProgressFrame progress_frame_;
     LabelStack packet_status_;
     LabelStack profile_status_;
     capture_file *cap_file_;
@@ -79,6 +79,12 @@ public slots:
     void pushFilterStatus(const QString &message);
     void popFilterStatus();
     void pushProfileName();
+    void pushBusyStatus(const QString &message, const QString &messagetip = QString());
+    void popBusyStatus();
+    void pushProgressStatus(const QString &message, bool animate, bool terminate_is_stop = false, gboolean *stop_flag = NULL);
+    void updateProgressStatus(int value);
+    void popProgressStatus();
+
     void updateCaptureStatistics(capture_session * cap_session);
     void updateCaptureFixedStatistics(capture_session * cap_session);
 

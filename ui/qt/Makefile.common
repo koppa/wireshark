@@ -30,9 +30,10 @@ GENERATED_HEADER_FILES =
 # Generated header files that we don't want in the distribution.
 NODIST_GENERATED_HEADER_FILES =	\
 	ui_about_dialog.h	\
+	ui_address_editor_frame.h	\
 	ui_bluetooth_att_server_attributes_dialog.h	\
 	ui_bluetooth_devices_dialog.h	\
-	ui_capture_file_progress_frame.h \
+	ui_bluetooth_hci_summary_dialog.h	\
 	ui_capture_file_properties_dialog.h	\
 	ui_capture_interfaces_dialog.h	\
 	ui_capture_preferences_frame.h	\
@@ -42,6 +43,7 @@ NODIST_GENERATED_HEADER_FILES =	\
 	ui_compiled_filter_output.h		\
 	ui_decode_as_dialog.h	\
 	ui_display_filter_expression_dialog.h	\
+	ui_enabled_protocols_dialog.h	\
 	ui_expert_info_dialog.h	\
 	ui_export_object_dialog.h	\
 	ui_export_pdu_dialog.h	\
@@ -53,6 +55,8 @@ NODIST_GENERATED_HEADER_FILES =	\
 	ui_font_color_preferences_frame.h	\
 	ui_funnel_string_dialog.h	\
 	ui_funnel_text_dialog.h	\
+	ui_gsm_map_summary_dialog.h	\
+	ui_iax2_analysis_dialog.h	\
 	ui_import_text_dialog.h	\
 	ui_io_graph_dialog.h	\
 	ui_layout_preferences_frame.h	\
@@ -65,6 +69,8 @@ NODIST_GENERATED_HEADER_FILES =	\
 	ui_main_window_preferences_frame.h	\
 	ui_manage_interfaces_dialog.h	\
 	ui_module_preferences_scroll_area.h	\
+	ui_mtp3_summary_dialog.h	\
+	ui_overlay_scroll_bar.h	\
 	ui_packet_comment_dialog.h	\
 	ui_packet_dialog.h	\
 	ui_packet_format_group_box.h	\
@@ -73,9 +79,12 @@ NODIST_GENERATED_HEADER_FILES =	\
 	ui_preferences_dialog.h	\
 	ui_print_dialog.h	\
 	ui_profile_dialog.h	\
+	ui_progress_frame.h \
 	ui_protocol_hierarchy_dialog.h	\
 	ui_remote_capture_dialog.h	\
 	ui_remote_settings_dialog.h	\
+	ui_resolved_addresses_dialog.h	\
+	ui_rtp_analysis_dialog.h	\
 	ui_rtp_stream_dialog.h	\
 	ui_sctp_all_assocs_dialog.h	\
 	ui_sctp_assoc_analyse_dialog.h	\
@@ -130,13 +139,14 @@ GENERATOR_FILES =
 MOC_HDRS =	\
 	about_dialog.h	\
 	accordion_frame.h	\
+	address_editor_frame.h	\
 	bluetooth_att_server_attributes_dialog.h	\
 	bluetooth_devices_dialog.h	\
+	bluetooth_hci_summary_dialog.h	\
 	byte_view_tab.h	\
 	byte_view_text.h	\
 	capture_file.h	\
 	capture_file_dialog.h	\
-	capture_file_progress_frame.h	\
 	capture_file_properties_dialog.h	\
 	capture_filter_combo.h	\
 	capture_filter_edit.h	\
@@ -155,6 +165,7 @@ MOC_HDRS =	\
 	display_filter_edit.h	\
 	display_filter_expression_dialog.h	\
 	elided_label.h	\
+	enabled_protocols_dialog.h	\
 	endpoint_dialog.h	\
 	expert_info_dialog.h	\
 	export_dissection_dialog.h	\
@@ -173,6 +184,8 @@ MOC_HDRS =	\
 	funnel_string_dialog.h	\
 	funnel_text_dialog.h	\
 	funnel_statistics.h	\
+	gsm_map_summary_dialog.h	\
+	iax2_analysis_dialog.h	\
 	import_text_dialog.h	\
 	interface_tree.h	\
 	io_graph_dialog.h	\
@@ -188,16 +201,21 @@ MOC_HDRS =	\
 	main_window_preferences_frame.h	\
 	manage_interfaces_dialog.h	\
 	module_preferences_scroll_area.h	\
+	multicast_statistics_dialog.h	\
+	mtp3_summary_dialog.h	\
+	overlay_scroll_bar.h	\
 	packet_comment_dialog.h	\
 	packet_dialog.h	\
 	packet_format_group_box.h	\
 	packet_list.h	\
 	packet_list_model.h	\
 	packet_range_group_box.h	\
+	percent_bar_delegate.h	\
 	preference_editor_frame.h	\
 	preferences_dialog.h	\
 	print_dialog.h	\
 	profile_dialog.h	\
+	progress_frame.h	\
 	proto_tree.h	\
 	protocol_hierarchy_dialog.h	\
 	protocol_preferences_menu.h	\
@@ -206,8 +224,10 @@ MOC_HDRS =	\
 	related_packet_delegate.h	\
 	remote_capture_dialog.h	\
 	remote_settings_dialog.h	\
+	resolved_addresses_dialog.h	\
 	response_time_delay_dialog.h	\
-	search_frame.h	\
+	rpc_service_response_time_dialog.h	\
+	rtp_analysis_dialog.h	\
 	rtp_stream_dialog.h	\
 	sctp_all_assocs_dialog.h	\
 	sctp_assoc_analyse_dialog.h	\
@@ -215,6 +235,7 @@ MOC_HDRS =	\
 	sctp_graph_dialog.h	\
 	sctp_graph_arwnd_dialog.h	\
 	sctp_graph_byte_dialog.h	\
+	search_frame.h	\
 	sequence_diagram.h	\
 	sequence_dialog.h	\
 	service_response_time_dialog.h	\
@@ -223,6 +244,7 @@ MOC_HDRS =	\
 	sparkline_delegate.h	\
 	splash_overlay.h	\
 	stats_tree_dialog.h	\
+	stock_icon_tool_button.h	\
 	syntax_line_edit.h	\
 	tap_parameter_dialog.h	\
 	tcp_stream_dialog.h	\
@@ -232,17 +254,18 @@ MOC_HDRS =	\
 	voip_calls_dialog.h	\
 	wireless_frame.h	\
 	wireshark_application.h	\
-	wireshark_dialog.h
-
+	wireshark_dialog.h	\
+	wlan_statistics_dialog.h
 
 #
 # .ui files.
 #
 UI_FILES =	\
 	about_dialog.ui	\
+	address_editor_frame.ui	\
 	bluetooth_att_server_attributes_dialog.ui	\
 	bluetooth_devices_dialog.ui	\
-	capture_file_progress_frame.ui	\
+	bluetooth_hci_summary_dialog.ui	\
 	capture_file_properties_dialog.ui 	\
 	capture_interfaces_dialog.ui 	\
 	capture_preferences_frame.ui	\
@@ -252,6 +275,7 @@ UI_FILES =	\
 	compiled_filter_output.ui \
 	decode_as_dialog.ui	\
 	display_filter_expression_dialog.ui	\
+	enabled_protocols_dialog.ui	\
 	expert_info_dialog.ui	\
 	export_object_dialog.ui	\
 	export_pdu_dialog.ui	\
@@ -263,6 +287,8 @@ UI_FILES =	\
 	font_color_preferences_frame.ui	\
 	funnel_string_dialog.ui	\
 	funnel_text_dialog.ui	\
+	gsm_map_summary_dialog.ui	\
+	iax2_analysis_dialog.ui	\
 	import_text_dialog.ui	\
 	io_graph_dialog.ui	\
 	layout_preferences_frame.ui	\
@@ -275,6 +301,7 @@ UI_FILES =	\
 	main_window_preferences_frame.ui	\
 	manage_interfaces_dialog.ui		\
 	module_preferences_scroll_area.ui	\
+	mtp3_summary_dialog.ui	\
 	packet_format_group_box.ui	\
 	packet_range_group_box.ui	\
 	packet_comment_dialog.ui	\
@@ -283,9 +310,12 @@ UI_FILES =	\
 	preferences_dialog.ui	\
 	print_dialog.ui	\
 	profile_dialog.ui	\
+	progress_frame.ui	\
 	protocol_hierarchy_dialog.ui	\
 	remote_capture_dialog.ui	\
 	remote_settings_dialog.ui	\
+	resolved_addresses_dialog.ui	\
+	rtp_analysis_dialog.ui	\
 	rtp_stream_dialog.ui	\
 	sctp_all_assocs_dialog.ui	\
 	sctp_assoc_analyse_dialog.ui	\
@@ -318,7 +348,6 @@ MOC_SRC = $(MOC_HDRS:.h=.moc.cpp)
 # Should QRC_FILES or QRC_SRC depend on QRC_IMAGES?
 QRC_FILES =	\
 	../../image/about.qrc	\
-	../../image/display_filter.qrc	\
 	../../image/languages/languages.qrc	\
 	../../image/layout.qrc	\
 	../../image/status.qrc	\
@@ -356,13 +385,14 @@ QRC_SRC = $(QRC_FILES:.qrc=.rcc.cpp)
 WIRESHARK_QT_SRC =	\
 	about_dialog.cpp	\
 	accordion_frame.cpp	\
+	address_editor_frame.cpp	\
 	bluetooth_att_server_attributes_dialog.cpp	\
 	bluetooth_devices_dialog.cpp	\
+	bluetooth_hci_summary_dialog.cpp	\
 	byte_view_tab.cpp	\
 	byte_view_text.cpp	\
 	capture_file.cpp	\
 	capture_file_dialog.cpp	\
-	capture_file_progress_frame.cpp	\
 	capture_file_properties_dialog.cpp	\
 	capture_filter_combo.cpp	\
 	capture_filter_edit.cpp	\
@@ -381,8 +411,8 @@ WIRESHARK_QT_SRC =	\
 	display_filter_edit.cpp	\
 	display_filter_expression_dialog.cpp	\
 	elided_label.cpp	\
+	enabled_protocols_dialog.cpp	\
 	endpoint_dialog.cpp	\
-	expert_info_dialog.cpp	\
 	export_dissection_dialog.cpp	\
 	export_object_dialog.cpp	\
 	export_pdu_dialog.cpp	\
@@ -398,10 +428,9 @@ WIRESHARK_QT_SRC =	\
 	font_color_preferences_frame.cpp	\
 	funnel_string_dialog.cpp	\
 	funnel_text_dialog.cpp	\
-	funnel_statistics.cpp	\
+	iax2_analysis_dialog.cpp	\
 	import_text_dialog.cpp	\
 	interface_tree.cpp	\
-	io_graph_dialog.cpp	\
 	label_stack.cpp	\
 	layout_preferences_frame.cpp	\
 	lbm_lbtrm_transport_dialog.cpp	\
@@ -415,6 +444,7 @@ WIRESHARK_QT_SRC =	\
 	main_window_slots.cpp	\
 	manage_interfaces_dialog.cpp	\
 	module_preferences_scroll_area.cpp	\
+	overlay_scroll_bar.cpp	\
 	packet_comment_dialog.cpp	\
 	packet_dialog.cpp	\
 	packet_format_group_box.cpp	\
@@ -422,10 +452,12 @@ WIRESHARK_QT_SRC =	\
 	packet_list_model.cpp	\
 	packet_list_record.cpp	\
 	packet_range_group_box.cpp	\
+	percent_bar_delegate.cpp	\
 	preference_editor_frame.cpp	\
 	preferences_dialog.cpp	\
 	print_dialog.cpp	\
 	profile_dialog.cpp	\
+	progress_frame.cpp	\
 	proto_tree.cpp	\
 	protocol_hierarchy_dialog.cpp	\
 	protocol_preferences_menu.cpp	\
@@ -435,10 +467,10 @@ WIRESHARK_QT_SRC =	\
 	related_packet_delegate.cpp	\
 	remote_capture_dialog.cpp	\
 	remote_settings_dialog.cpp	\
+	resolved_addresses_dialog.cpp	\
 	response_time_delay_dialog.cpp	\
-	rtp_stream_dialog.cpp	\
-	sctp_all_assocs_dialog.cpp	\
-	sctp_assoc_analyse_dialog.cpp	\
+	rpc_service_response_time_dialog.cpp	\
+	rtp_analysis_dialog.cpp	\
 	sctp_chunk_statistics_dialog.cpp	\
 	sctp_graph_dialog.cpp	\
 	sctp_graph_arwnd_dialog.cpp	\
@@ -451,8 +483,8 @@ WIRESHARK_QT_SRC =	\
 	simple_statistics_dialog.cpp	\
 	sparkline_delegate.cpp	\
 	splash_overlay.cpp	\
-	stats_tree_dialog.cpp	\
 	stock_icon.cpp		\
+	stock_icon_tool_button.cpp	\
 	syntax_line_edit.cpp	\
 	tap_parameter_dialog.cpp	\
 	tcp_stream_dialog.cpp	\
@@ -465,7 +497,17 @@ WIRESHARK_QT_SRC =	\
 	wireshark_dialog.cpp
 
 WIRESHARK_QT_TAP_SRC =	\
-	stats_tree_dialog.cpp
+	expert_info_dialog.cpp	\
+	funnel_statistics.cpp	\
+	gsm_map_summary_dialog.cpp	\
+	io_graph_dialog.cpp	\
+	mtp3_summary_dialog.cpp	\
+	multicast_statistics_dialog.cpp	\
+	rtp_stream_dialog.cpp	\
+	sctp_all_assocs_dialog.cpp	\
+	sctp_assoc_analyse_dialog.cpp	\
+	stats_tree_dialog.cpp	\
+	wlan_statistics_dialog.cpp
 
 noinst_HEADERS =	\
 	$(MOC_HDRS)	\

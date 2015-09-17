@@ -444,6 +444,43 @@ static const value_string error_code_vals[] = {
     { 0x29,  "Unsupported Configuration" },
     /* ACP to INT, Procedure Error Codes */
     { 0x31,  "Bad State" },
+    /* GAVDTP */
+    { 0x80,  "The Service Category Stated is Invalid" },
+    { 0x81,  "Lack of Resource New Stream Context" },
+    /* A2DP */
+    { 0xC1,  "Invalid Codec Type" },
+    { 0xC2,  "Not Supported Codec Type" },
+    { 0xC3,  "Invalid Sampling Frequency" },
+    { 0xC4,  "Not Supported Sampling Frequency" },
+    { 0xC5,  "Invalid Channel Mode" },
+    { 0xC6,  "Not Supported Channel Mode" },
+    { 0xC7,  "Invalid Subbands" },
+    { 0xC8,  "Not Supported Subbands" },
+    { 0xC9,  "Invalid Allocation Method" },
+    { 0xCA,  "Not Supported Allocation Method" },
+    { 0xCB,  "Invalid Minimum Bitpool Value" },
+    { 0xCC,  "Not Supported Minimum Bitpool Value" },
+    { 0xCD,  "Invalid Maximum Bitpool Value" },
+    { 0xCE,  "Not Supported Maximum Bitpool Value" },
+    { 0xCF,  "Invalid Layer" },
+    { 0xD0,  "Not Supported Layer" },
+    { 0xD1,  "Not Supported CRC" },
+    { 0xD2,  "Not Supported MPF" },
+    { 0xD3,  "Not Supported VBR" },
+    { 0xD4,  "Invalid Bit Rate" },
+    { 0xD5,  "Not Supported Bit Rate" },
+    { 0xD6,  "Invalid Object Type" },
+    { 0xD7,  "Not Supported Object Type" },
+    { 0xD8,  "Invalid Channels" },
+    { 0xD9,  "Not Supported Channels" },
+    { 0xDA,  "Invalid Version" },
+    { 0xDB,  "Not Supported Version" },
+    { 0xDC,  "Not Supported Maximum SUL" },
+    { 0xDD,  "Invalid Block Length" },
+    { 0xE0,  "Invalid Content Protection Type" },
+    { 0xE1,  "Invalid Content Protection Format" },
+    { 0xE2,  "Invalid Coded Parameter" },
+    { 0xE3,  "Not Supported Codec Parameter" },
     { 0, NULL }
 };
 
@@ -2710,7 +2747,7 @@ proto_register_btavdtp(void)
 void
 proto_reg_handoff_btavdtp(void)
 {
-    dissector_add_uint("btl2cap.service", BTSDP_AVDTP_PROTOCOL_UUID, btavdtp_handle);
+    dissector_add_string("bluetooth.uuid", "19", btavdtp_handle);
 
     dissector_add_uint("btl2cap.psm", BTL2CAP_PSM_AVDTP, btavdtp_handle);
 
@@ -3145,9 +3182,10 @@ proto_reg_handoff_bta2dp(void)
 
     rtp_handle   = find_dissector("rtp");
 
-    dissector_add_uint("btl2cap.service", BTSDP_A2DP_SOURCE_SERVICE_UUID, bta2dp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_A2DP_SINK_SERVICE_UUID, bta2dp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_A2DP_DISTRIBUTION_SERVICE_UUID, bta2dp_handle);
+    dissector_add_string("bluetooth.uuid", "110a", bta2dp_handle);
+    dissector_add_string("bluetooth.uuid", "110b", bta2dp_handle);
+    dissector_add_string("bluetooth.uuid", "110d", bta2dp_handle);
+
     dissector_add_for_decode_as("btl2cap.cid", bta2dp_handle);
 }
 
@@ -3381,9 +3419,10 @@ proto_reg_handoff_btvdp(void)
 
     rtp_handle   = find_dissector("rtp");
 
-    dissector_add_uint("btl2cap.service", BTSDP_VDP_SOURCE_SERVICE_UUID, btvdp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_VDP_SINK_SERVICE_UUID, btvdp_handle);
-    dissector_add_uint("btl2cap.service", BTSDP_VDP_DISTRIBUTION_SERVICE_UUID, btvdp_handle);
+    dissector_add_string("bluetooth.uuid", "1303", btvdp_handle);
+    dissector_add_string("bluetooth.uuid", "1304", btvdp_handle);
+    dissector_add_string("bluetooth.uuid", "1305", btvdp_handle);
+
     dissector_add_for_decode_as("btl2cap.cid", btvdp_handle);
 }
 

@@ -283,10 +283,10 @@ dissect_stat_umon_all(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, v
 }
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 
 static const vsff stat1_proc[] = {
-	{ 0, "NULL", NULL, NULL },
+	{ 0, "NULL",
+	  dissect_rpc_void, dissect_rpc_void },
 	{ STATPROC_STAT,       "STAT",
 	  dissect_stat_stat, dissect_stat_stat_res },
 	{ STATPROC_MON,        "MON",
@@ -296,13 +296,17 @@ static const vsff stat1_proc[] = {
 	{ STATPROC_UNMON_ALL,  "UNMON_ALL",
 	  dissect_stat_umon_all, dissect_stat_state },
 	{ STATPROC_SIMU_CRASH, "SIMU_CRASH",
-	  NULL, NULL },
+	  dissect_rpc_void, dissect_rpc_void },
 	{ STATPROC_NOTIFY,     "NOTIFY",
-	  dissect_stat_notify, NULL },
+	  dissect_stat_notify, dissect_rpc_void },
 	{ 0, NULL, NULL, NULL }
 };
 /* end of stat version 1 */
 
+
+static const rpc_prog_vers_info stat_vers_info[] = {
+	{ 1, stat1_proc, &hfi_stat_procedure_v1.id },
+};
 
 void
 proto_register_stat(void)
@@ -348,9 +352,8 @@ void
 proto_reg_handoff_stat(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(hfi_stat->id, STAT_PROGRAM, ett_stat);
-	/* Register the procedure tables */
-	rpc_init_proc_table(hfi_stat->id, STAT_PROGRAM, 1, stat1_proc, hfi_stat_procedure_v1.id);
+	rpc_init_prog(hfi_stat->id, STAT_PROGRAM, ett_stat,
+	    G_N_ELEMENTS(stat_vers_info), stat_vers_info);
 }
 
 /*

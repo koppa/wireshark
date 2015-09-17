@@ -147,28 +147,22 @@ prefs_layout.c: layouts.h
 stock_icons.c: stock_icons.h toolbar_icons.h wsicon.h
 
 WIRESHARK_TAP_SRC = \
-	camel_counter.c	\
 	compare_stat.c	\
 	dcerpc_stat.c	\
 	expert_comp_dlg.c     \
 	export_pdu_dlg.c	\
 	flow_graph.c	\
 	funnel_stat.c	\
-	gsm_a_stat.c	\
-	gsm_map_stat.c	\
 	gsm_map_summary.c	\
-	h225_counter.c	\
 	iax2_analysis.c	\
 	io_stat.c	\
 	lbm_stream_dlg.c	\
 	lbm_uimflow_dlg.c	\
 	mac_lte_stat_dlg.c	\
 	mcast_stream_dlg.c	\
-	mtp3_stat.c	\
 	mtp3_summary.c	\
 	rlc_lte_graph.c	\
 	rlc_lte_stat_dlg.c	\
-	rpc_progs.c	\
 	rpc_stat.c	\
 	rtp_analysis.c	\
 	rtp_stream_dlg.c	\
@@ -181,7 +175,6 @@ WIRESHARK_TAP_SRC = \
 	tcp_graph.c	\
 	voip_calls_dlg.c \
 	wlan_stat_dlg.c	 \
-	wsp_stat.c	\
 	$(WIRESHARK_CUSTOM_TAP_SRC)
 
 noinst_HEADERS = \
@@ -228,7 +221,6 @@ noinst_HEADERS = \
 	font_utils.h	\
 	goto_dlg.h	\
 	graph_analysis.h \
-	gsm_map_stat.h	\
 	gtk_iface_monitor.h	\
 	gtkglobals.h	\
 	gui_stat_menu.h	\
@@ -236,7 +228,6 @@ noinst_HEADERS = \
 	gui_utils.h	\
 	help_dlg.h	\
 	hostlist_table.h \
-	iax2_analysis.h	\
 	keys.h		\
 	layouts.h	\
 	lbm_stream_dlg.h	\
@@ -257,7 +248,6 @@ noinst_HEADERS = \
 	main_welcome_private.h	\
 	manual_addr_resolv.h	\
 	mcast_stream_dlg.h	\
-	mtp3_stat.h	\
 	network_icons.h	\
 	old-gtk-compat.h	\
 	packet_history.h	\

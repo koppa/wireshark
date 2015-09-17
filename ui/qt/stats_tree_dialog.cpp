@@ -111,7 +111,6 @@ void StatsTreeDialog::setupNode(stat_node* node)
 
 void StatsTreeDialog::fillTree()
 {
-    GString *error_string;
     if (!st_cfg_ || file_closed_) return;
 
     QString display_name = gchar_free_to_qstring(stats_tree_get_displayname(st_cfg_->name));
@@ -126,7 +125,8 @@ void StatsTreeDialog::fillTree()
     if (st_) {
         stats_tree_free(st_);
     }
-    st_ = stats_tree_new(st_cfg_, NULL, displayFilter());
+    QString display_filter = displayFilter();
+    st_ = stats_tree_new(st_cfg_, NULL, display_filter.toUtf8().constData());
 
     // Add number of columns for this stats_tree
     QStringList header_labels;
@@ -138,25 +138,22 @@ void StatsTreeDialog::fillTree()
     resize(st_->num_columns*80+80, height());
     statsTreeWidget()->setSortingEnabled(false);
 
-    error_string = register_tap_listener(st_cfg_->tapname,
-                          st_,
-                          st_->filter,
-                          st_cfg_->flags,
-                          resetTap,
-                          stats_tree_packet,
-                          drawTreeItems);
-    if (error_string) {
-        QMessageBox::critical(this, tr("%1 failed to attach to tap").arg(display_name),
-                             error_string->str);
-        g_string_free(error_string, TRUE);
-        reject();
+    if (!registerTapListener(st_cfg_->tapname,
+                             st_,
+                             st_->filter,
+                             st_cfg_->flags,
+                             resetTap,
+                             stats_tree_packet,
+                             drawTreeItems)) {
+        reject(); // XXX Stay open instead?
+        return;
     }
 
-    cf_retap_packets(cap_file_.capFile());
+    cap_file_.retapPackets();
     drawTreeItems(st_);
 
     statsTreeWidget()->setSortingEnabled(true);
-    remove_tap_listener(st_);
+    removeTapListeners();
 
     st_cfg_->pr = NULL;
 }
@@ -181,7 +178,7 @@ void StatsTreeDialog::drawTreeItems(void *st_ptr)
     while (*iter) {
         stat_node *node = (*iter)->data(item_col_, Qt::UserRole).value<stat_node *>();
         if (node) {
-            gchar    **valstrs = stats_tree_get_values_from_node(node);
+            gchar **valstrs = stats_tree_get_values_from_node(node);
             for (int count = 0; count<st->num_columns; count++) {
                 (*iter)->setText(count,valstrs[count]);
                 g_free(valstrs[count]);
@@ -210,7 +207,7 @@ QByteArray StatsTreeDialog::getTreeAsString(st_format_type format)
 
 extern "C" {
 void
-register_tap_listener_stats_tree_stat(void)
+register_tap_listener_qt_stats_tree_stat(void)
 {
     stats_tree_presentation(NULL,
                 StatsTreeDialog::setupNode,

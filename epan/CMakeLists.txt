@@ -76,6 +76,7 @@ set(DFILTER_FILES
 	dfilter/sttype-integer.c
 	dfilter/sttype-pointer.c
 	dfilter/sttype-range.c
+	dfilter/sttype-set.c
 	dfilter/sttype-string.c
 	dfilter/sttype-test.c
 	dfilter/syntax-tree.c
@@ -317,6 +318,8 @@ set(DISSECTOR_SRC
 	dissectors/file-gif.c
 	dissectors/file-jpeg.c
 	dissectors/file-mp4.c
+	dissectors/file-pcap.c
+	dissectors/file-pcapng.c
 	dissectors/file-png.c
 	dissectors/packet-2dparityfec.c
 	dissectors/packet-3com-njack.c
@@ -471,6 +474,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-cast.c
 	dissectors/packet-catapult-dct2000.c
 	dissectors/packet-cattp.c
+	dissectors/packet-cbor.c
 	dissectors/packet-ccsds.c
 	dissectors/packet-cdp.c
 	dissectors/packet-cell_broadcast.c
@@ -1013,6 +1017,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-mq-pcf.c
 	dissectors/packet-mq.c
 	dissectors/packet-mqtt.c
+	dissectors/packet-mqtt-sn.c
 	dissectors/packet-mrcpv2.c
 	dissectors/packet-mrdisc.c
 	dissectors/packet-mrp-mmrp.c
@@ -1026,6 +1031,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-msproxy.c
 	dissectors/packet-msrp.c
 	dissectors/packet-mstp.c
+	dissectors/packet-mswsp.c
 	dissectors/packet-mtp2.c
 	dissectors/packet-mtp3.c
 	dissectors/packet-mtp3mg.c
@@ -1320,6 +1326,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-tapa.c
 	dissectors/packet-tcp.c
 	dissectors/packet-tdmoe.c
+	dissectors/packet-tdmop.c
 	dissectors/packet-tds.c
 	dissectors/packet-teamspeak2.c
 	dissectors/packet-teimanagement.c
@@ -1426,6 +1433,8 @@ set(DISSECTOR_SRC
 	dissectors/packet-x29.c
 	dissectors/packet-xcsl.c
 	dissectors/packet-xdmcp.c
+	dissectors/packet-xip.c
+	dissectors/packet-xip-serval.c
 	dissectors/packet-xmcp.c
 	dissectors/packet-xml.c
 	dissectors/packet-xmpp-conference.c
@@ -1740,7 +1749,7 @@ add_library(epan ${LINK_MODE_LIB}
 	${CMAKE_BINARY_DIR}/image/libwireshark.rc
 )
 
-set(FULL_SO_VERSION "0.0.8")
+set(FULL_SO_VERSION "0.0.10")
 
 set_target_properties(epan PROPERTIES COMPILE_DEFINITIONS "WS_BUILD_DLL")
 set_target_properties(epan PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")
@@ -1754,7 +1763,7 @@ endif()
 
 ABICHECK(libwireshark)
 
-file(GLOB EPAN_HEADERS *.h)
+set(TOP_LEVEL_HEADERS ${CMAKE_BINARY_DIR}/config.h ${CMAKE_SOURCE_DIR}/color.h ${CMAKE_SOURCE_DIR}/register.h)
 file(GLOB CRYPT_HEADERS crypt/*.h)
 file(GLOB COMPRESS_HEADERS compress/*.h)
 file(GLOB DFILTER_HEADERS dfilter/*.h ../tools/lemon/cppmagic.h)
@@ -1762,28 +1771,27 @@ file(GLOB D_HEADERS dissectors/*.h)
 file(GLOB FTYPES_HEADERS ftypes/*.h)
 file(GLOB WMEM_HEADERS wmem/*.h)
 file(GLOB NGHTTP2_HEADERS nghttp2/*.h)
-file(MAKE_DIRECTORY ${ABICHECK_TMPDIR}
-	${ABICHECK_TMPDIR}/epan
-	${ABICHECK_TMPDIR}/crypt
-	${ABICHECK_TMPDIR}/compress
-	${ABICHECK_TMPDIR}/dfilter
-	${ABICHECK_TMPDIR}/dissectors
-	${ABICHECK_TMPDIR}/ftypes
-	${ABICHECK_TMPDIR}/wmem
-	${ABICHECK_TMPDIR}/nghttp2)
-
-file(COPY ../color.h ../register.h DESTINATION ${ABICHECK_TMPDIR})
-file(COPY ${HEADERS} DESTINATION ${ABICHECK_TMPDIR}/epan)
-file(COPY ${CRYPT_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/crypt)
-file(COPY ${COMPRESS_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/compress)
-file(COPY ${DFILTER_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/dfilter)
-file(COPY ${D_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/dissectors)
-file(COPY ${FTYPES_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/ftypes)
-file(COPY ${WMEM_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/wmem)
-file(COPY ${NGHTTP2_HEADERS} DESTINATION ${ABICHECK_TMPDIR}/nghttp2)
 
 add_custom_command(OUTPUT libwireshark.abi.tar.gz
-	COMMAND cp ../config.h ${ABICHECK_TMPDIR}
+	COMMAND ${CMAKE_COMMAND} -E remove_directory ${ABICHECK_TMPDIR}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/epan
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/crypt
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/compress
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/dfilter
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/dissectors
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/ftypes
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/wmem
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${ABICHECK_TMPDIR}/nghttp2
+	COMMAND ${ABI_COPY_COMMAND} ${TOP_LEVEL_HEADERS} ${ABICHECK_TMPDIR} ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${ABICHECK_HEADERS} ${ABICHECK_TMPDIR}/epan ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${CRYPT_HEADERS} ${ABICHECK_TMPDIR}/crypt ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${COMPRESS_HEADERS} ${ABICHECK_TMPDIR}/compress ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${DFILTER_HEADERS} ${ABICHECK_TMPDIR}/dfilter ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${D_HEADERS} ${ABICHECK_TMPDIR}/dissectors ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${FTYPES_HEADERS} ${ABICHECK_TMPDIR}/ftypes ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${WMEM_HEADERS} ${ABICHECK_TMPDIR}/wmem ${ABI_COPY_FLAGS}
+	COMMAND ${ABI_COPY_COMMAND} ${NGHTTP2_HEADERS} ${ABICHECK_TMPDIR}/nghttp2 ${ABI_COPY_FLAGS}
 	COMMAND rm -f ${ABICHECK_TMPDIR}/dissectors/x11-extension-implementation.h
 		${ABICHECK_TMPDIR}/dissectors/packet-rtps.h
 		${ABICHECK_TMPDIR}/dissectors/x11-glx-render-enum.h
@@ -1791,12 +1799,13 @@ add_custom_command(OUTPUT libwireshark.abi.tar.gz
 		${ABICHECK_TMPDIR}/dissectors/packet-idmp.h
 	COMMAND ${ABICHECK_COMMAND}
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/abi_dumps/libwireshark/libwireshark_* ${CMAKE_CURRENT_BINARY_DIR}/libwireshark.abi.tar.gz
-	COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/abi_dumps ${ABICHECK_TMPDIR}/config.h
-		${ABICHECK_TMPDIR}/epan/* ${ABICHECK_TMPDIR}/crypt/*
-		${ABICHECK_TMPDIR}/epan/* ${ABICHECK_TMPDIR}/compress/*
-		${ABICHECK_TMPDIR}/dfilter/* ${ABICHECK_TMPDIR}/dissectors/*
-		${ABICHECK_TMPDIR}/ftypes/* ${ABICHECK_TMPDIR}/wmem/*
-		${ABICHECK_TMPDIR}/nghttp2/*
+	COMMAND rm -rf ${ABICHECK_TMPDIR} ${CMAKE_CURRENT_BINARY_DIR}/abi_dumps
+#	COMMAND rm -rf ${CMAKE_CURRENT_BINARY_DIR}/abi_dumps ${ABICHECK_TMPDIR}/config.h
+#		${ABICHECK_TMPDIR}/epan/* ${ABICHECK_TMPDIR}/crypt/*
+#		${ABICHECK_TMPDIR}/epan/* ${ABICHECK_TMPDIR}/compress/*
+#		${ABICHECK_TMPDIR}/dfilter/* ${ABICHECK_TMPDIR}/dissectors/*
+#		${ABICHECK_TMPDIR}/ftypes/* ${ABICHECK_TMPDIR}/wmem/*
+#		${ABICHECK_TMPDIR}/nghttp2/*
 	DEPENDS ${HEADERS}
 		${CRYPT_HEADERS} ${COMPRESS_HEADERS} ${DFILTER_HEADERS} ${D_HEADERS}
 		${FTYPES_HEADERS} ${WMEM_HEADERS} ${NGHTTP2_HEADERS} epan)

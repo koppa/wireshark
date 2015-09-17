@@ -65,7 +65,7 @@ InterfaceTree::InterfaceTree(QWidget *parent) :
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setAccessibleName(tr("Welcome screen list"));
 
-    setItemDelegateForColumn(IFTREE_COL_STATS, new SparkLineDelegate());
+    setItemDelegateForColumn(IFTREE_COL_STATS, new SparkLineDelegate(this));
     setDisabled(true);
 
     ti = new QTreeWidgetItem();
@@ -207,6 +207,7 @@ void InterfaceTree::display()
 #endif
         addTopLevelItem(ti);
         // XXX Add other device information
+        resizeColumnToContents(IFTREE_COL_NAME);
         resizeColumnToContents(IFTREE_COL_STATS);
 
 #if HAVE_EXTCAP

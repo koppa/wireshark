@@ -27,9 +27,9 @@
 
 #include <ui/service_response_time.h>
 
+#include "rpc_service_response_time_dialog.h"
 #include "wireshark_application.h"
 
-#include <QMessageBox>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
 
@@ -55,12 +55,17 @@ void register_service_response_tables(gpointer data, gpointer)
     register_srt_t *srt = (register_srt_t*)data;
     const char* short_name = proto_get_protocol_short_name(find_protocol_by_id(get_srt_proto_id(srt)));
     const char *cfg_abbr = srt_table_get_tap_string(srt);
+    tpdCreator tpd_creator = ServiceResponseTimeDialog::createSrtDialog;
 
     /* XXX - These dissectors haven't been converted over to due to an "interactive input dialog" for their
        tap data.  Let those specific dialogs register for themselves */
-    if ((strcmp(short_name, "RPC") == 0) ||
-        (strcmp(short_name, "DCERPC") == 0))
-        return;
+    if (strcmp(short_name, "DCERPC") == 0) {
+        short_name = "DCE-RPC";
+        tpd_creator = RpcServiceResponseTimeDialog::createDceRpcSrtDialog;
+    } else if (strcmp(short_name, "RPC") == 0) {
+        short_name = "ONC-RPC";
+        tpd_creator = RpcServiceResponseTimeDialog::createOncRpcSrtDialog;
+    }
 
     cfg_str_to_srt_[cfg_abbr] = srt;
     TapParameterDialog::registerDialog(
@@ -68,7 +73,7 @@ void register_service_response_tables(gpointer data, gpointer)
                 cfg_abbr,
                 REGISTER_STAT_GROUP_RESPONSE_TIME,
                 srt_init,
-                ServiceResponseTimeDialog::createSrtDialog);
+                tpd_creator);
 }
 
 enum {
@@ -189,49 +194,7 @@ ServiceResponseTimeDialog::ServiceResponseTimeDialog(QWidget &parent, CaptureFil
         statsTreeWidget()->headerItem()->setTextAlignment(col, Qt::AlignRight);
     }
 
-    QMenu *submenu;
-    QAction *insert_action = ctx_menu_.actions().first();
-
-    FilterAction::Action cur_action = FilterAction::ActionApply;
-    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
-    foreach (FilterAction::ActionType at, FilterAction::actionTypes()) {
-        FilterAction *fa = new FilterAction(submenu, cur_action, at);
-        submenu->addAction(fa);
-        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
-        filter_actions_ << fa;
-    }
-    ctx_menu_.insertMenu(insert_action, submenu);
-
-    cur_action = FilterAction::ActionPrepare;
-    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
-    foreach (FilterAction::ActionType at, FilterAction::actionTypes()) {
-        FilterAction *fa = new FilterAction(submenu, cur_action, at);
-        submenu->addAction(fa);
-        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
-        filter_actions_ << fa;
-    }
-    ctx_menu_.insertMenu(insert_action, submenu);
-
-    cur_action = FilterAction::ActionFind;
-    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
-    foreach (FilterAction::ActionType at, FilterAction::actionTypes(cur_action)) {
-        FilterAction *fa = new FilterAction(submenu, cur_action, at);
-        submenu->addAction(fa);
-        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
-        filter_actions_ << fa;
-    }
-    ctx_menu_.insertMenu(insert_action, submenu);
-
-    cur_action = FilterAction::ActionColorize;
-    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
-    foreach (FilterAction::ActionType at, FilterAction::actionTypes(cur_action)) {
-        FilterAction *fa = new FilterAction(submenu, cur_action, at);
-        submenu->addAction(fa);
-        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
-        filter_actions_ << fa;
-    }
-    ctx_menu_.insertMenu(insert_action, submenu);
-    ctx_menu_.insertSeparator(insert_action);
+    addFilterActions();
 
     if (!filter.isEmpty()) {
         setDisplayFilter(filter);
@@ -301,23 +264,21 @@ void ServiceResponseTimeDialog::fillTree()
 
     srt_table_dissector_init(srt_, srt_data.srt_array, NULL, NULL);
 
-    GString *error_string = register_tap_listener(get_srt_tap_listener_name(srt_),
-                          &srt_data,
-                          displayFilter(),
-                          0,
-                          tapReset,
-                          get_srt_packet_func(srt_),
-                          tapDraw);
-    if (error_string) {
-        QMessageBox::critical(this, tr("Failed to attach to tap \"%1\"").arg(get_srt_tap_listener_name(srt_)),
-                             error_string->str);
-        g_string_free(error_string, TRUE);
-        reject();
+    QString display_filter = displayFilter();
+    if (!registerTapListener(get_srt_tap_listener_name(srt_),
+                        &srt_data,
+                        display_filter.toUtf8().constData(),
+                        0,
+                        tapReset,
+                        get_srt_packet_func(srt_),
+                        tapDraw)) {
+        reject(); // XXX Stay open instead?
+        return;
     }
 
     statsTreeWidget()->setSortingEnabled(false);
 
-    cf_retap_packets(cap_file_.capFile());
+    cap_file_.retapPackets();
 
     // We only have one table. Move its tree items up one level.
     if (statsTreeWidget()->invisibleRootItem()->childCount() == 1) {
@@ -329,7 +290,9 @@ void ServiceResponseTimeDialog::fillTree()
     statsTreeWidget()->sortItems(SRT_COLUMN_PROCEDURE, Qt::AscendingOrder);
     statsTreeWidget()->setSortingEnabled(true);
 
-    remove_tap_listener(&srt_data);
+    removeTapListeners();
+
+    g_array_free(srt_data.srt_array, TRUE);
 }
 
 QList<QVariant> ServiceResponseTimeDialog::treeItemData(QTreeWidgetItem *ti) const

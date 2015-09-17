@@ -45,6 +45,7 @@
 
 #include "wsutil/file_util.h"
 
+#include "progress_frame.h"
 #include "wireshark_application.h"
 
 #include <QClipboard>
@@ -82,6 +83,9 @@ TapParameterDialog::TapParameterDialog(QWidget &parent, CaptureFile &cf, int hel
     // XXX Use recent settings instead
     resize(parent.width() * 2 / 3, parent.height() * 3 / 4);
 
+    // Only show a hint label if a subclass provides a hint.
+    ui->hintLabel->hide();
+
     ctx_menu_.addAction(ui->actionCopyToClipboard);
     ctx_menu_.addAction(ui->actionSaveAs);
 
@@ -89,17 +93,31 @@ TapParameterDialog::TapParameterDialog(QWidget &parent, CaptureFile &cf, int hel
     button = ui->buttonBox->addButton(tr("Copy"), QDialogButtonBox::ActionRole);
     connect(button, SIGNAL(clicked()), this, SLOT(on_actionCopyToClipboard_triggered()));
 
-    button = ui->buttonBox->addButton(tr("Save as..."), QDialogButtonBox::ActionRole);
+    button = ui->buttonBox->addButton(tr("Save as" UTF8_HORIZONTAL_ELLIPSIS), QDialogButtonBox::ActionRole);
     connect(button, SIGNAL(clicked()), this, SLOT(on_actionSaveAs_triggered()));
+
+    connect(ui->displayFilterLineEdit, SIGNAL(textChanged(QString)),
+            this, SLOT(updateWidgets()));
+
+    ProgressFrame::addToButtonBox(ui->buttonBox, &parent);
 
     if (help_topic_ < 1) {
         ui->buttonBox->button(QDialogButtonBox::Help)->hide();
     }
+
+    if (!ui->displayFilterLineEdit->text().isEmpty()) {
+        QString filter = ui->displayFilterLineEdit->text();
+        emit updateFilter(filter);
+    }
+    show_timer_ = new QTimer(this);
+    setRetapOnShow(true);
 }
 
 TapParameterDialog::~TapParameterDialog()
 {
     delete ui;
+    show_timer_->stop();
+    delete show_timer_;
 }
 
 void TapParameterDialog::registerDialog(const QString title, const char *cfg_abbr, register_stat_group_t group, stat_tap_init_cb tap_init_cb, tpdCreator creator)
@@ -137,9 +155,29 @@ QTreeWidget *TapParameterDialog::statsTreeWidget()
     return ui->statsTreeWidget;
 }
 
-const char *TapParameterDialog::displayFilter()
+QLineEdit *TapParameterDialog::displayFilterLineEdit()
 {
-    return ui->displayFilterLineEdit->text().toUtf8().constData();
+    return ui->displayFilterLineEdit;
+}
+
+QPushButton *TapParameterDialog::applyFilterButton()
+{
+    return ui->applyFilterButton;
+}
+
+QVBoxLayout *TapParameterDialog::verticalLayout()
+{
+    return ui->verticalLayout;
+}
+
+QHBoxLayout *TapParameterDialog::filterLayout()
+{
+    return ui->filterLayout;
+}
+
+QString TapParameterDialog::displayFilter()
+{
+    return ui->displayFilterLineEdit->text();
 }
 
 // This assumes that we're called before signals are connected or show()
@@ -147,6 +185,20 @@ const char *TapParameterDialog::displayFilter()
 void TapParameterDialog::setDisplayFilter(const QString &filter)
 {
     ui->displayFilterLineEdit->setText(filter);
+}
+
+void TapParameterDialog::setHint(const QString &hint)
+{
+    ui->hintLabel->setText(hint);
+    ui->hintLabel->show();
+}
+
+void TapParameterDialog::setRetapOnShow(bool retap)
+{
+    show_timer_->stop();
+    if (retap) {
+        show_timer_->singleShot(0, this, SLOT(on_applyFilterButton_clicked()));
+    }
 }
 
 void TapParameterDialog::filterActionTriggered()
@@ -388,15 +440,6 @@ void TapParameterDialog::drawTreeItems()
     }
 }
 
-void TapParameterDialog::showEvent(QShowEvent *)
-{
-    if (!ui->displayFilterLineEdit->text().isEmpty()) {
-        QString filter = ui->displayFilterLineEdit->text();
-        emit updateFilter(filter, true);
-    }
-    fillTree();
-}
-
 void TapParameterDialog::contextMenuEvent(QContextMenuEvent *event)
 {
     bool enable = filterExpression().length() > 0 ? true : false;
@@ -408,19 +451,89 @@ void TapParameterDialog::contextMenuEvent(QContextMenuEvent *event)
     ctx_menu_.exec(event->globalPos());
 }
 
+void TapParameterDialog::addFilterActions()
+{
+    QMenu *submenu;
+    QAction *insert_action = ctx_menu_.actions().first();
+
+    FilterAction::Action cur_action = FilterAction::ActionApply;
+    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
+    foreach (FilterAction::ActionType at, FilterAction::actionTypes()) {
+        FilterAction *fa = new FilterAction(submenu, cur_action, at);
+        submenu->addAction(fa);
+        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
+        filter_actions_ << fa;
+    }
+    ctx_menu_.insertMenu(insert_action, submenu);
+
+    cur_action = FilterAction::ActionPrepare;
+    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
+    foreach (FilterAction::ActionType at, FilterAction::actionTypes()) {
+        FilterAction *fa = new FilterAction(submenu, cur_action, at);
+        submenu->addAction(fa);
+        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
+        filter_actions_ << fa;
+    }
+    ctx_menu_.insertMenu(insert_action, submenu);
+
+    cur_action = FilterAction::ActionFind;
+    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
+    foreach (FilterAction::ActionType at, FilterAction::actionTypes(cur_action)) {
+        FilterAction *fa = new FilterAction(submenu, cur_action, at);
+        submenu->addAction(fa);
+        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
+        filter_actions_ << fa;
+    }
+    ctx_menu_.insertMenu(insert_action, submenu);
+
+    cur_action = FilterAction::ActionColorize;
+    submenu = ctx_menu_.addMenu(FilterAction::actionName(cur_action));
+    foreach (FilterAction::ActionType at, FilterAction::actionTypes(cur_action)) {
+        FilterAction *fa = new FilterAction(submenu, cur_action, at);
+        submenu->addAction(fa);
+        connect(fa, SIGNAL(triggered()), this, SLOT(filterActionTriggered()));
+        filter_actions_ << fa;
+    }
+    ctx_menu_.insertMenu(insert_action, submenu);
+    ctx_menu_.insertSeparator(insert_action);
+}
+
 void TapParameterDialog::updateWidgets()
 {
+    bool edit_enable = true;
+    bool apply_enable = true;
+
     if (file_closed_) {
-        ui->displayFilterLineEdit->setEnabled(false);
-        ui->applyFilterButton->setEnabled(false);
+        edit_enable = false;
+        apply_enable = false;
+    } else if (!ui->displayFilterLineEdit->checkFilter()) {
+        // XXX Tell the user why the filter is invalid.
+        apply_enable = false;
     }
+    ui->displayFilterLineEdit->setEnabled(edit_enable);
+    ui->applyFilterButton->setEnabled(apply_enable);
 }
 
 void TapParameterDialog::on_applyFilterButton_clicked()
 {
+    beginRetapPackets();
+    if (!ui->displayFilterLineEdit->checkFilter())
+        return;
+
     QString filter = ui->displayFilterLineEdit->text();
-    emit updateFilter(filter, true);
+    emit updateFilter(filter);
+    // If we wanted to be fancy we could add an isRetapping function to
+    // either WiresharkDialog or CaptureFile and use it in updateWidgets
+    // to enable and disable the apply button as needed.
+    // For now we use more simple but less useful logic.
+    bool df_enabled = ui->displayFilterLineEdit->isEnabled();
+    bool af_enabled = ui->applyFilterButton->isEnabled();
+    ui->displayFilterLineEdit->setEnabled(false);
+    ui->applyFilterButton->setEnabled(false);
     fillTree();
+    ui->applyFilterButton->setEnabled(af_enabled);
+    ui->displayFilterLineEdit->setEnabled(df_enabled);
+    endRetapPackets();
 }
 
 void TapParameterDialog::on_actionCopyToClipboard_triggered()

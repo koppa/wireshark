@@ -874,7 +874,7 @@ tree_view_selection_changed_cb(GtkTreeSelection *sel, gpointer user_data _U_)
         } else {
             /*
              * Don't show anything if the field name is zero-length;
-             * the pseudo-field for "proto_tree_add_text()" is such
+             * the pseudo-field for text-only items is such
              * a field, and we don't want "Text (text)" showing up
              * on the status line if you've selected such a field.
              *
@@ -886,10 +886,9 @@ tree_view_selection_changed_cb(GtkTreeSelection *sel, gpointer user_data _U_)
              * but we'd have to add checks for null pointers in some
              * places if we did that.
              *
-             * Or perhaps protocol tree items added with
-             * "proto_tree_add_text()" should have -1 as the field index,
-             * with no pseudo-field being used, but that might also
-             * require special checks for -1 to be added.
+             * Or perhaps text-only items should have -1 as the field
+             * index, with no pseudo-field being used, but that might
+             * also require special checks for -1 to be added.
              */
             statusbar_push_field_msg("%s", "");
         }
@@ -952,7 +951,15 @@ void collapse_tree_cb(GtkWidget *widget _U_, gpointer data _U_)
 
 void resolve_name_cb(GtkWidget *widget _U_, gpointer data _U_)
 {
-    static const e_addr_resolve resolv_flags = {TRUE, TRUE, TRUE, TRUE, TRUE, FALSE};
+    static const e_addr_resolve resolv_flags = {
+        TRUE,   /* mac_name */
+        TRUE,   /* network_name */
+        TRUE,   /* transport_name */
+        TRUE,   /* concurrent_dns */
+        TRUE,   /* dns_pkt_addr_resolution */
+        TRUE,   /* use_external_net_name_resolver */
+        FALSE   /* load_hosts_file_from_profile_only */
+    };
 
     if (cfile.edt->tree) {
         proto_tree_draw_resolve(cfile.edt->tree, tree_view_gbl, &resolv_flags);
@@ -1231,7 +1238,13 @@ print_usage(gboolean for_help_option) {
     fprintf(output, "Processing:\n");
     fprintf(output, "  -R <read filter>         packet filter in Wireshark display filter syntax\n");
     fprintf(output, "  -n                       disable all name resolutions (def: all enabled)\n");
-    fprintf(output, "  -N <name resolve flags>  enable specific name resolution(s): \"mntC\"\n");
+    fprintf(output, "  -N <name resolve flags>  enable specific name resolution(s): \"mnNtCd\"\n");
+    fprintf(output, "  --disable-protocol <proto_name>\n");
+    fprintf(output, "                           disable dissection of proto_name\n");
+    fprintf(output, "  --enable-heuristic <short_name>\n");
+    fprintf(output, "                           enable dissection of heuristic protocol\n");
+    fprintf(output, "  --disable-heuristic <short_name>\n");
+    fprintf(output, "                           disable dissection of heuristic protocol\n");
 
     fprintf(output, "\n");
     fprintf(output, "User interface:\n");
@@ -1787,6 +1800,12 @@ main_cf_callback(gint event, gpointer data, gpointer user_data _U_)
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Rescan finished");
         main_cf_cb_file_rescan_finished(cf);
         break;
+    case(cf_cb_file_retap_started):
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Retap started");
+        break;
+    case(cf_cb_file_retap_finished):
+        g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Retap finished");
+        break;
     case(cf_cb_file_fast_save_finished):
         g_log(LOG_DOMAIN_MAIN, G_LOG_LEVEL_DEBUG, "Callback: Fast save finished");
         main_cf_cb_file_rescan_finished(cf);
@@ -2054,6 +2073,8 @@ read_configuration_files(char **gdp_path, char **dp_path)
     /* Read the disabled protocols file. */
     read_disabled_protos_list(gdp_path, &gdp_open_errno, &gdp_read_errno,
                               dp_path, &dp_open_errno, &dp_read_errno);
+    read_disabled_heur_dissector_list(gdp_path, &gdp_open_errno, &gdp_read_errno,
+                              dp_path, &dp_open_errno, &dp_read_errno);
     if (*gdp_path != NULL) {
         if (gdp_open_errno != 0) {
             simple_dialog(ESD_TYPE_WARN, ESD_BTN_OK,
@@ -2178,6 +2199,9 @@ main(int argc, char *argv[])
 #ifdef HAVE_GTKOSXAPPLICATION
     GtkosxApplication   *theApp;
 #endif
+    GSList              *disable_protocol_slist = NULL;
+    GSList              *enable_heur_slist = NULL;
+    GSList              *disable_heur_slist = NULL;
 
 #define OPTSTRING OPTSTRING_CAPTURE_COMMON "C:g:Hh" "jJ:kK:lm:nN:o:P:r:R:St:u:vw:X:Y:z:"
 DIAG_OFF(cast-qual)
@@ -2671,15 +2695,12 @@ DIAG_ON(cast-qual)
                 prefs_p->gui_gtk2_font_name = g_strdup(optarg);
                 break;
             case 'n':        /* No name resolution */
-                gbl_resolv_flags.mac_name = FALSE;
-                gbl_resolv_flags.network_name = FALSE;
-                gbl_resolv_flags.transport_name = FALSE;
-                gbl_resolv_flags.concurrent_dns = FALSE;
+                disable_name_resolution();
                 break;
             case 'N':        /* Select what types of addresses/port #s to resolve */
                 badopt = string_to_name_resolve(optarg, &gbl_resolv_flags);
                 if (badopt != '\0') {
-                    cmdarg_err("-N specifies unknown resolving option '%c'; valid options are 'm', 'n', and 't'",
+                    cmdarg_err("-N specifies unknown resolving option '%c'; valid options are 'C', 'd', m', 'n', 'N', and 't'",
                                badopt);
                     exit(1);
                 }
@@ -2804,6 +2825,15 @@ DIAG_ON(cast-qual)
                     list_stat_cmd_args();
                     exit(1);
                 }
+                break;
+            case LONGOPT_DISABLE_PROTOCOL: /* disable dissection of protocol */
+                disable_protocol_slist = g_slist_append(disable_protocol_slist, optarg);
+                break;
+            case LONGOPT_ENABLE_HEURISTIC: /* enable heuristic dissection of protocol */
+                enable_heur_slist = g_slist_append(enable_heur_slist, optarg);
+                break;
+            case LONGOPT_DISABLE_HEURISTIC: /* disable heuristic dissection of protocol */
+                disable_heur_slist = g_slist_append(disable_heur_slist, optarg);
                 break;
             default:
             case '?':        /* Bad flag - print usage message */
@@ -2935,11 +2965,19 @@ DIAG_ON(cast-qual)
 
             device = g_array_index(global_capture_opts.all_ifaces, interface_t, i);
             if (device.selected) {
-#if defined(HAVE_PCAP_CREATE)
-                caps = capture_get_if_capabilities(device.name, device.monitor_mode_supported, &err_str, main_window_update);
-#else
-                caps = capture_get_if_capabilities(device.name, FALSE, &err_str,main_window_update);
+                gchar* auth_str = NULL;
+#ifdef HAVE_PCAP_REMOTE
+                if (device.remote_opts.remote_host_opts.auth_type == CAPTURE_AUTH_PWD) {
+                    auth_str = g_strdup_printf("%s:%s", device.remote_opts.remote_host_opts.auth_username,
+                                               device.remote_opts.remote_host_opts.auth_password);
+                }
 #endif
+#if defined(HAVE_PCAP_CREATE)
+                caps = capture_get_if_capabilities(device.name, device.monitor_mode_supported, auth_str, &err_str, main_window_update);
+#else
+                caps = capture_get_if_capabilities(device.name, FALSE, auth_str, &err_str,main_window_update);
+#endif
+                g_free(auth_str);
                 if (caps == NULL) {
                     cmdarg_err("%s", err_str);
                     g_free(err_str);
@@ -3002,6 +3040,31 @@ DIAG_ON(cast-qual)
     /* disabled protocols as per configuration file */
     if (gdp_path == NULL && dp_path == NULL) {
         set_disabled_protos_list();
+        set_disabled_heur_dissector_list();
+    }
+
+    if(disable_protocol_slist) {
+        GSList *proto_disable;
+        for (proto_disable = disable_protocol_slist; proto_disable != NULL; proto_disable = g_slist_next(proto_disable))
+        {
+            proto_disable_proto_by_name((char*)proto_disable->data);
+        }
+    }
+
+    if(enable_heur_slist) {
+        GSList *heur_enable;
+        for (heur_enable = enable_heur_slist; heur_enable != NULL; heur_enable = g_slist_next(heur_enable))
+        {
+            proto_enable_heuristic_by_name((char*)heur_enable->data, TRUE);
+        }
+    }
+
+    if(disable_heur_slist) {
+        GSList *heur_disable;
+        for (heur_disable = disable_heur_slist; heur_disable != NULL; heur_disable = g_slist_next(heur_disable))
+        {
+            proto_enable_heuristic_by_name((char*)heur_disable->data, FALSE);
+        }
     }
 
     build_column_format_array(&cfile.cinfo, prefs_p->num_cols, TRUE);
@@ -3844,6 +3907,7 @@ void change_configuration_profile (const gchar *profile_name)
     proto_enable_all();
     if (gdp_path == NULL && dp_path == NULL) {
         set_disabled_protos_list();
+        set_disabled_heur_dissector_list();
     }
 
     /* Reload color filters */

@@ -144,10 +144,9 @@ dissect_getquota_call(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, v
 }
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 static const vsff rquota1_proc[] = {
 	{ RQUOTAPROC_NULL,		"NULL",
-		NULL,				NULL },
+		dissect_rpc_void,		dissect_rpc_void },
 	{ RQUOTAPROC_GETQUOTA,		"GETQUOTA",
 		dissect_getquota_call,		dissect_getquota_result	},
 	{ RQUOTAPROC_GETACTIVEQUOTA,	"GETACTIVEQUOTA",
@@ -186,7 +185,7 @@ dissect_getquota2_call(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree, 
 
 static const vsff rquota2_proc[] = {
 	{ RQUOTAPROC_NULL,		"NULL",
-		NULL,				NULL },
+		dissect_rpc_void,		dissect_rpc_void },
 	{ RQUOTAPROC_GETQUOTA,		"GETQUOTA",
 		dissect_getquota2_call,		dissect_getquota_result	},
 	{ RQUOTAPROC_GETACTIVEQUOTA,	"GETACTIVEQUOTA",
@@ -203,6 +202,11 @@ static const value_string rquota2_proc_vals[] = {
 	{ 0,				NULL }
 };
 /* end of RQUOTA version 2 */
+
+static const rpc_prog_vers_info rquota_vers_info[] = {
+	{ 1, rquota1_proc, &hf_rquota_procedure_v1 },
+	{ 2, rquota2_proc, &hf_rquota_procedure_v2 },
+};
 
 void
 proto_register_rquota(void)
@@ -297,10 +301,8 @@ void
 proto_reg_handoff_rquota(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_rquota, RQUOTA_PROGRAM, ett_rquota);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_rquota, RQUOTA_PROGRAM, 1, rquota1_proc, hf_rquota_procedure_v1);
-	rpc_init_proc_table(proto_rquota, RQUOTA_PROGRAM, 2, rquota2_proc, hf_rquota_procedure_v2);
+	rpc_init_prog(proto_rquota, RQUOTA_PROGRAM, ett_rquota,
+	    G_N_ELEMENTS(rquota_vers_info), rquota_vers_info);
 }
 
 /*

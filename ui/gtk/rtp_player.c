@@ -55,6 +55,7 @@
 #include <math.h>
 #include <string.h>
 #include <portaudio.h>
+#include <assert.h>
 
 #include <gtk/gtk.h>
 
@@ -119,11 +120,11 @@ static int new_jitter_buff;
 /* a hash table with the RTP streams to play per audio channel */
 static GHashTable *rtp_channels_hash = NULL;
 
-static int sample_rate = 8000;
-static int channels = 1;
+static unsigned sample_rate = 8000;
+static unsigned channels = 1;
 
 /* Port Audio stuff */
-static int output_channels = 2;
+static unsigned output_channels = 2;
 
 #define PA_SAMPLE_TYPE  paInt16
 typedef gint16 SAMPLE;
@@ -159,7 +160,7 @@ static PaStream *pa_stream;
 typedef struct _rtp_channel_info {
 	nstime_t start_time_abs;
 	nstime_t stop_time_abs;
-	GArray *samples;			/* the array with decoded audio */
+	GArray *samples;			/* Array of sample_t (decoded audio) */
 	guint16 call_num;
 	gboolean selected;
 	unsigned long frame_index;
@@ -456,15 +457,15 @@ mark_all_rtp_stream_to_decode(gchar *key _U_ , rtp_stream_info_t *rsi, gpointer 
 /* Decode a RTP packet
  * Return the number of decoded bytes
  */
-static int
+static size_t
 decode_rtp_packet(rtp_packet_t *rp, SAMPLE **out_buff, GHashTable *decoders_hash)
 {
 	unsigned int  payload_type;
 	const gchar *p;
 	rtp_decoder_t *decoder;
 	SAMPLE *tmp_buff = NULL;
-	int tmp_buff_len;
-	int decoded_bytes = 0;
+	size_t tmp_buff_len;
+	size_t decoded_bytes = 0;
 
 	if ((rp->payload_data == NULL) || (rp->info->info_payload_len == 0) ) {
 		return 0;
@@ -533,7 +534,8 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr)
 	GList*  rtp_packet_list;
 	rtp_packet_t *rp;
 
-	int i;
+	size_t i;
+	gint32 j;
 	double rtp_time;
 	double rtp_time_prev;
 	double arrive_time;
@@ -551,8 +553,8 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr)
 #endif
 	char *src_addr, *dst_addr;
 
-	int decoded_bytes;
-	int decoded_bytes_prev;
+	size_t decoded_bytes;
+	size_t decoded_bytes_prev;
 	int jitter_buff;
 	SAMPLE *out_buff = NULL;
 	sample_t silence;
@@ -611,7 +613,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr)
 	} else {
 		/* Add silence between the two streams if needed */
 		silence_frames = (gint32)((nstime_to_msec(&rsi->start_fd->abs_ts) - nstime_to_msec(&rci->stop_time_abs)) * sample_rate);
-		for (i = 0; i< silence_frames; i++) {
+		for (j = 0; j < silence_frames; j++) {
 			g_array_append_val(rci->samples, silence);
 		}
 		rci->num_packets += rsi->packet_count;
@@ -720,7 +722,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr)
 				if (silence_frames > MAX_SILENCE_FRAMES)
 					silence_frames = MAX_SILENCE_FRAMES;
 
-				for (i = 0; i< silence_frames; i++) {
+				for (j = 0; j < silence_frames; j++) {
 					silence.status = status;
 					g_array_append_val(rci->samples, silence);
 
@@ -756,7 +758,7 @@ decode_rtp_stream(rtp_stream_info_t *rsi, gpointer ptr)
 			if (silence_frames > MAX_SILENCE_FRAMES)
 				silence_frames = MAX_SILENCE_FRAMES;
 
-			for (i = 0; i< silence_frames; i++) {
+			for (j = 0; j < silence_frames; j++) {
 				silence.status = status;
 				g_array_append_val(rci->samples, silence);
 
@@ -896,7 +898,7 @@ draw_channel_cursor(rtp_channel_info_t *rci, guint32 start_index)
 	GtkAllocation widget_alloc;
 	cairo_t *cr;
 
-	if (!rci) return;
+	if (!rci || !pa_stream) return;
 
 #if PORTAUDIO_API_1
 	idx = Pa_StreamTime( pa_stream ) - rtp_channels->pause_duration - rtp_channels->out_diff_time - start_index;
@@ -1888,6 +1890,7 @@ play_channels(void)
 	/* if not PAUSE, then start to PLAY */
 	} else {
 #if PORTAUDIO_API_1
+		assert(output_channels <= INT_MAX);
 		err = Pa_OpenStream(
 			  &pa_stream,
 			  paNoDevice,     /* default input device */
@@ -1895,7 +1898,7 @@ play_channels(void)
 			  PA_SAMPLE_TYPE,
 			  NULL,
 			  Pa_GetDefaultOutputDeviceID(),
-			  output_channels,
+			  (int)output_channels,
 			  PA_SAMPLE_TYPE,
 			  NULL,
 			  sample_rate,
@@ -1935,10 +1938,11 @@ play_channels(void)
 		}
 #else /* PORTAUDIO_API_1 */
 		if (Pa_GetDefaultOutputDevice() != paNoDevice) {
+		        assert(output_channels <= INT_MAX);
 			err = Pa_OpenDefaultStream(
 				&pa_stream,
 				0,
-				output_channels,
+				(int)output_channels,
 				PA_SAMPLE_TYPE,
 				sample_rate,
 				FRAMES_PER_BUFFER,
@@ -2209,7 +2213,7 @@ decode_streams(void)
 	progbar_count = 0;
 
 	/* Mark the RTP streams to be played using the selected VoipCalls. If voip_calls is NULL
-	   then this was called from "RTP Analysis" so mark all strams */
+	   then this was called from "RTP Analysis" so mark all streams */
 	if (rtp_streams_hash) {
 		if (voip_calls)
 			g_hash_table_foreach( rtp_streams_hash, (GHFunc)mark_rtp_stream_to_play, NULL);

@@ -194,6 +194,14 @@ static const gchar *capture_cols[5] = {
     "Possible values: INTERFACE, LINK, PMODE, SNAPLEN, FILTER\n"
 #endif
 
+static const enum_val_t gui_packet_list_elide_mode[] = {
+    {"LEFT", "LEFT", ELIDE_LEFT},
+    {"RIGHT", "RIGHT", ELIDE_RIGHT},
+    {"MIDDLE", "MIDDLE", ELIDE_MIDDLE},
+    {"NONE", "NONE", ELIDE_NONE},
+    {NULL, NULL, -1}
+};
+
 /*
  * List of all modules with preference settings.
  */
@@ -295,6 +303,27 @@ prefs_register_module(module_t *parent, const char *name, const char *title,
 {
     return prefs_register_module_or_subtree(parent, name, title, description,
                                             FALSE, apply_cb, use_gui);
+}
+
+static void
+prefs_deregister_module(module_t *parent, const char *name, const char *title)
+{
+    /* Remove this module from the list of all modules */
+    module_t *module = (module_t *)wmem_tree_remove_string(prefs_modules, name, WMEM_TREE_STRING_NOCASE);
+
+    if (!module)
+        return;
+
+    if (parent == NULL) {
+        /* Remove from top */
+        wmem_tree_remove_string(prefs_top_level_modules, title, WMEM_TREE_STRING_NOCASE);
+    } else if (parent->submodules) {
+        /* Remove from parent */
+        wmem_tree_remove_string(parent->submodules, title, WMEM_TREE_STRING_NOCASE);
+    }
+
+    free_module_prefs(module, NULL);
+    wmem_free(wmem_epan_scope(), module);
 }
 
 /*
@@ -444,6 +473,15 @@ prefs_register_protocol(int id, void (*apply_cb)(void))
                                  proto_get_protocol_filter_name(id),
                                  proto_get_protocol_short_name(protocol),
                                  proto_get_protocol_name(id), apply_cb, TRUE);
+}
+
+void
+prefs_deregister_protocol (int id)
+{
+    protocol_t *protocol = find_protocol_by_id(id);
+    prefs_deregister_module (protocols_module,
+                             proto_get_protocol_filter_name(id),
+                             proto_get_protocol_short_name(protocol));
 }
 
 module_t *
@@ -2036,7 +2074,7 @@ prefs_register_modules(void)
      */
     prefs_register_enum_preference(gui_module, "console_open",
                        "Open a console window",
-                       "Open a console window (WIN32 only)",
+                       "Open a console window (Windows only)",
                        (gint*)(void*)(&prefs.gui_console_open), gui_console_open_type, FALSE);
 
     prefs_register_obsolete_preference(gui_module, "scrollbar_on_right");
@@ -2337,10 +2375,21 @@ prefs_register_modules(void)
                        "Layout content of the pane 3",
                        (gint*)(void*)(&prefs.gui_layout_content_3), gui_layout_content, FALSE);
 
+    prefs_register_bool_preference(gui_layout_module, "packet_list_separator.enabled",
+                                   "Enable Packet List Separator",
+                                   "Enable Packet List Separator",
+                                   &prefs.gui_qt_packet_list_separator);
+
     prefs_register_bool_preference(gui_module, "packet_editor.enabled",
                                    "Enable Packet Editor",
                                    "Enable Packet Editor (Experimental)",
                                    &prefs.gui_packet_editor);
+
+    prefs_register_enum_preference(gui_module, "packet_list_elide_mode",
+                       "Elide mode",
+                       "The position of \"...\" in packet list text.",
+                       (gint*)(void*)(&prefs.gui_packet_list_elide_mode), gui_packet_list_elide_mode, FALSE);
+
     /* Console
      * These are preferences that can be read/written using the
      * preference module API.  These preferences still use their own
@@ -2974,6 +3023,9 @@ pre_init_prefs(void)
     prefs.gui_layout_content_2       = layout_pane_content_pdetails;
     prefs.gui_layout_content_3       = layout_pane_content_pbytes;
     prefs.gui_packet_editor          = FALSE;
+    prefs.gui_packet_list_elide_mode = ELIDE_RIGHT;
+
+    prefs.gui_qt_packet_list_separator = FALSE;
 
     if (!prefs.col_list) {
         /* First time through */
@@ -3309,6 +3361,7 @@ read_prefs_file(const char *pf_path, FILE *pf,
     /* Try to read in the profile name in the first line of the preferences file. */
     if (fscanf(pf, "# Configuration file for %127[^\r\n]", ver) == 1) {
         /* Assume trailing period and remove it */
+        g_free(prefs.saved_at_version);
         prefs.saved_at_version = g_strndup(ver, strlen(ver) - 1);
     }
     rewind(pf);
@@ -3753,6 +3806,9 @@ string_to_name_resolve(const char *string, e_addr_resolve *name_resolve)
         case 'C':
             name_resolve->concurrent_dns = TRUE;
             break;
+        case 'd':
+            name_resolve->dns_pkt_addr_resolution = TRUE;
+            break;
         default:
             /*
              * Unrecognized letter.
@@ -3807,6 +3863,78 @@ try_convert_to_custom_column(gpointer *el_data)
     }
 }
 
+static gboolean
+deprecated_heur_dissector_pref(gchar *pref_name, const gchar *value)
+{
+    struct heur_pref_name
+    {
+        const char* pref_name;
+        const char* short_name;
+        gboolean  more_dissectors; /* For multiple dissectors controlled by the same preference */
+    };
+
+    struct heur_pref_name heur_prefs[] = {
+        {"acn.heuristic_acn", "acn_udp", 0},
+        {"bfcp.enable", "bfcp_tcp", 1},
+        {"bfcp.enable", "bfcp_udp", 0},
+        {"bt-dht.enable", "bittorrent_dht_udp", 0},
+        {"bt-utp.enable", "bt_utp_udp", 0},
+        {"cattp.enable", "cattp_udp", 0},
+        {"cfp.enable", "fp_eth", 0},
+        {"dicom.heuristic", "dicom_tcp", 0},
+        {"dnp3.heuristics", "dnp3_tcp", 1},
+        {"dnp3.heuristics", "dnp3_udp", 0},
+        {"dvb-s2_modeadapt.enable", "dvb_s2_udp", 0},
+        {"esl.enable", "esl_eth", 0},
+        {"fp.udp_heur", "fp_udp", 0},
+        {"gvsp.enable_heuristic", "gvsp_udp", 0},
+        {"hdcp2.enable", "hdcp2_tcp", 0},
+        {"hislip.enable_heuristic", "hislip_tcp", 0},
+        {"jxta.udp.heuristic", "jxta_udp", 0},
+        {"jxta.tcp.heuristic", "jxta_tcp", 0},
+        {"jxta.sctp.heuristic", "jxta_sctp", 0},
+        {"mac-lte.heuristic_mac_lte_over_udp", "mac_lte_udp", 0},
+        {"mbim.bulk_heuristic", "mbim_usb_bulk", 0},
+        {"norm.heuristic_norm", "rmt_norm_udp", 0},
+        {"openflow.heuristic", "openflow_tcp", 0},
+        {"pdcp-lte.heuristic_pdcp_lte_over_udp", "pdcp_lte_udp", 0},
+        {"rlc.heuristic_rlc_over_udp", "rlc_udp", 0},
+        {"rlc-lte.heuristic_rlc_lte_over_udp", "rlc_lte_udp", 0},
+        {"rtcp.heuristic_rtcp", "rtcp_udp", 1},
+        {"rtcp.heuristic_rtcp", "rtcp_stun", 0},
+        {"rtp.heuristic_rtp", "rtp_udp", 1},
+        {"rtp.heuristic_rtp", "rtp_stun", 0},
+        {"teredo.heuristic_teredo", "teredo_udp", 0},
+        {"vssmonitoring.use_heuristics", "vssmonitoring_eth", 0},
+        {"xml.heuristic", "xml_http", 1},
+        {"xml.heuristic", "xml_sip", 1},
+        {"xml.heuristic", "xml_media", 0},
+        {"xml.heuristic_tcp", "xml_tcp", 0},
+        {"xml.heuristic_udp", "xml_udp", 0},
+    };
+
+    unsigned int i;
+    heur_dtbl_entry_t* heuristic;
+
+
+    for (i = 0; i < sizeof(heur_prefs)/sizeof(struct heur_pref_name); i++)
+    {
+        if (strcmp(pref_name, heur_prefs[i].pref_name) == 0)
+        {
+            heuristic = find_heur_dissector_by_unique_short_name(heur_prefs[i].short_name);
+            if (heuristic != NULL) {
+                heuristic->enabled = ((g_ascii_strcasecmp(value, "true") == 0) ? TRUE : FALSE);
+            }
+
+            if (!heur_prefs[i].more_dissectors)
+                return TRUE;
+        }
+    }
+
+
+    return FALSE;
+}
+
 static prefs_set_pref_e
 set_pref(gchar *pref_name, const gchar *value, void *private_data _U_,
          gboolean return_range_errors)
@@ -3856,20 +3984,16 @@ set_pref(gchar *pref_name, const gchar *value, void *private_data _U_,
             gbl_resolv_flags.concurrent_dns = TRUE;
         }
         else if (g_ascii_strcasecmp(value, "false") == 0) {
-            gbl_resolv_flags.mac_name = FALSE;
-            gbl_resolv_flags.network_name = FALSE;
-            gbl_resolv_flags.transport_name = FALSE;
-            gbl_resolv_flags.concurrent_dns = FALSE;
+            disable_name_resolution();
         }
         else {
             /* start out with none set */
-            gbl_resolv_flags.mac_name = FALSE;
-            gbl_resolv_flags.network_name = FALSE;
-            gbl_resolv_flags.transport_name = FALSE;
-            gbl_resolv_flags.concurrent_dns = FALSE;
+            disable_name_resolution();
             if (string_to_name_resolve(value, &gbl_resolv_flags) != '\0')
                 return PREFS_SET_SYNTAX_ERR;
         }
+    } else if (deprecated_heur_dissector_pref(pref_name, value)) {
+         /* Handled within deprecated_heur_dissector_pref() if found */
     } else {
         /* Handle deprecated "global" options that don't have a module
          * associated with them

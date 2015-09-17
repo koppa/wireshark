@@ -476,35 +476,34 @@ dissect_maplist_reply(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void*
 
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 
 /* someone please get me a version 1 trace */
 
 static const vsff ypserv1_proc[] = {
 	{ 0, "NULL",
-		NULL, NULL },
+		dissect_rpc_void, dissect_rpc_void },
 	{ YPPROC_DOMAIN, "DOMAIN",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_DOMAIN_NONACK, "DOMAIN_NONACK",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_MATCH, "MATCH",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_FIRST, "FIRST",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_NEXT,  "NEXT",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_XFR,   "XFR",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_CLEAR, "CLEAR",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_ALL,   "ALL",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_MASTER,    "MASTER",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_ORDER, "ORDER",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ YPPROC_MAPLIST,   "MAPLIST",
-		NULL, NULL },
+		dissect_rpc_unknown, dissect_rpc_unknown },
 	{ 0, NULL, NULL, NULL }
 };
 
@@ -526,11 +525,10 @@ static const value_string ypserv1_proc_vals[] = {
 /* end of YPServ version 1 */
 
 /* proc number, "proc name", dissect_request, dissect_reply */
-/* NULL as function pointer means: type of arguments is "void". */
 
 static const vsff ypserv2_proc[] = {
 	{ 0,                    "NULL",
-		NULL, NULL },
+		dissect_rpc_void, dissect_rpc_void },
 	{ YPPROC_DOMAIN,        "DOMAIN",
 		dissect_domain_call, dissect_domain_reply },
 	{ YPPROC_DOMAIN_NONACK, "DOMAIN_NONACK",
@@ -573,6 +571,11 @@ static const value_string ypserv2_proc_vals[] = {
 
 /* end of YPServ version 2 */
 
+
+static const rpc_prog_vers_info ypserv_vers_info[] = {
+	{ 1, ypserv1_proc, &hf_ypserv_procedure_v1 },
+	{ 2, ypserv2_proc, &hf_ypserv_procedure_v2 },
+};
 
 void
 proto_register_ypserv(void)
@@ -642,12 +645,8 @@ void
 proto_reg_handoff_ypserv(void)
 {
 	/* Register the protocol as RPC */
-	rpc_init_prog(proto_ypserv, YPSERV_PROGRAM, ett_ypserv);
-	/* Register the procedure tables */
-	rpc_init_proc_table(proto_ypserv, YPSERV_PROGRAM, 1, ypserv1_proc,
-	    hf_ypserv_procedure_v1);
-	rpc_init_proc_table(proto_ypserv, YPSERV_PROGRAM, 2, ypserv2_proc,
-	    hf_ypserv_procedure_v2);
+	rpc_init_prog(proto_ypserv, YPSERV_PROGRAM, ett_ypserv,
+	    G_N_ELEMENTS(ypserv_vers_info), ypserv_vers_info);
 }
 
 /*

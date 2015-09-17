@@ -55,10 +55,18 @@ FunnelTextDialog::FunnelTextDialog() :
 FunnelTextDialog::~FunnelTextDialog()
 {
     delete ui;
+}
+
+void FunnelTextDialog::reject()
+{
+    QDialog::reject();
 
     if (close_cb_) {
         close_cb_(close_cb_data_);
     }
+
+    disconnect();
+    deleteLater();
 }
 
 struct _funnel_text_window_t *FunnelTextDialog::textWindowNew(const QString title)
@@ -76,13 +84,13 @@ void FunnelTextDialog::setText(const QString text)
 
 void FunnelTextDialog::appendText(const QString text)
 {
-    ui->textEdit->moveCursor(QTextCursor::Start);
+    ui->textEdit->moveCursor(QTextCursor::End);
     ui->textEdit->insertPlainText(text);
 }
 
 void FunnelTextDialog::prependText(const QString text)
 {
-    ui->textEdit->moveCursor(QTextCursor::End);
+    ui->textEdit->moveCursor(QTextCursor::Start);
     ui->textEdit->insertPlainText(text);
 }
 
